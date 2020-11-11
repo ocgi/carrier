@@ -1,0 +1,635 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: gameservers.carrier.ocgi.dev
+spec:
+  group: carrier.ocgi.dev
+  version: v1alpha1
+  scope: Namespaced
+  additionalPrinterColumns:
+    - JSONPath: .status.state
+      name: State
+      type: string
+    - JSONPath: .status.address
+      name: Address
+      type: string
+    - JSONPath: .status.loadBalancerStatus.ingress[*].ports[*].externalPort
+      name: Port
+      type: string
+    - JSONPath: .status.loadBalancerStatus.ingress[*].ports[*].externalPortRange
+      name: PortRange
+      type: string
+    - JSONPath: .status.nodeName
+      name: Node
+      type: string
+    - JSONPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+  names:
+    kind: GameServer
+    plural: gameservers
+    shortNames:
+      - gs
+    singular: gameserver
+  validation:
+    openAPIV3Schema:
+      required:
+        - spec
+      properties:
+        spec:
+          required:
+            - template
+          properties:
+            template:
+              type: object
+              required:
+                - spec
+              properties:
+                spec:
+                  type: object
+                  required:
+                    - containers
+                  properties:
+                    containers:
+                      type: array
+                      minItems: 1
+                      items:
+                        type: object
+                        required:
+                          - image
+                        properties:
+                          name:
+                            type: string
+                            minLength: 0
+                            maxLength: 63
+                            pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                          image:
+                            type: string
+                            minLength: 1
+            ports:
+              title: array of ports to expose on the game server container
+              type: array
+              minItems: 1
+              items:
+                type: object
+                properties:
+                  portPolicy:
+                    title: the port policy that will be applied to the game server
+                    description: |
+                      portPolicy has three options:
+                      - "Dynamic" (default) the system allocates a random free hostPort for the gameserver, for game clients to connect to
+                      - "Static", user defines the hostPort that the game client will connect to. Then onus is on the user to ensure that the
+                      port is available. When static is the policy specified, `hostPort` is required to be populated
+                      - "Passthrough" dynamically sets the `containerPort` to the same value as the dynamically selected hostPort.
+                      This will mean that users will need to lookup what port has been opened through the server side SDK.
+                    type: string
+                    enum:
+                      - Dynamic
+                      - Static
+                      - Passthrough
+                  protocol:
+                    title: Protocol being used. Defaults to UDP. TCP and TCPUDP are other options.
+                    type: string
+                    enum:
+                      - UDP
+                      - TCP
+                      - TCPUDP
+                  containerPort:
+                    title: The port that is being opened on the game server process
+                    type: integer
+                    minimum: 1
+                    maximum: 65535
+                  hostPort:
+                    title: The port exposed on the host
+                    description: Only required when `portPolicy` is "Static". Overwritten when portPolicy is "Dynamic" or "Passthrough".
+                    type: integer
+                    minimum: 1
+                    maximum: 65535
+            sdkServer:
+              type: object
+              title: Parameters for the SDK Server (sidecar)
+              properties:
+                logLevel:
+                  type: string
+                  description: |
+                    sdkServer log level parameter has three options:
+                    - "Info" (default) The SDK server will output all messages except for debug messages
+                    - "Debug" The SDK server will output all messages including debug messages
+                    - "Error" The SDK server will only output error messages
+                  enum:
+                    - Error
+                    - Info
+                    - Debug
+                grpcPort:
+                  title: The port on which the SDK server binds the gRPC server to accept incoming connections
+                  description: |
+                    The default was 9020.
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+                httpPort:
+                  title: The port on which the SDK server binds the HTTP gRPC gateway server to accept incoming connections
+                  description: |
+                    The default was 9021.
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+            scheduling:
+              type: string
+              enum:
+                - MostAllocated
+                - LeastAllocated
+            health:
+              type: object
+              title: Health checking for the running game server
+              properties:
+                disabled:
+                  title: Disable health checking. defaults to false, but can be set to true
+                  type: boolean
+                initialDelaySeconds:
+                  title: Number of seconds after the container has started before health check is initiated. Defaults to 5 seconds
+                  type: integer
+                  minimum: 0
+                  maximum: 2147483648
+                periodSeconds:
+                  title: How long before the server is considered not healthy
+                  type: integer
+                  minimum: 0
+                  maximum: 2147483648
+                failureThreshold:
+                  title: Minimum consecutive failures for the health probe to be considered failed after having succeeded.
+                  type: integer
+                  minimum: 1
+                  maximum: 2147483648
+  subresources:
+    # status enables the status subresource.
+    status: {}
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: gameserversets.carrier.ocgi.dev
+spec:
+  additionalPrinterColumns:
+    - JSONPath: .spec.scheduling
+      name: Scheduling
+      type: string
+    - JSONPath: .spec.replicas
+      name: Desired
+      type: integer
+    - JSONPath: .status.replicas
+      name: Current
+      type: integer
+    - JSONPath: .status.allocatedReplicas
+      name: Allocated
+      type: integer
+    - JSONPath: .status.readyReplicas
+      name: Ready
+      type: integer
+    - JSONPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+  group: carrier.ocgi.dev
+  version: v1alpha1
+  scope: Namespaced
+  names:
+    kind: GameServerSet
+    plural: gameserversets
+    shortNames:
+      - gss
+      - gsset
+    singular: gameserverset
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          required:
+            - replicas
+            - template
+          properties:
+            replicas:
+              type: integer
+              minimum: 0
+            scheduling:
+              type: string
+              enum:
+                - MostAllocated
+                - LeastAllocated
+            template:
+              required:
+                - spec
+              properties:
+                spec:
+                  required:
+                    - template
+                  properties:
+                    template:
+                      type: object
+                      required:
+                        - spec
+                      properties:
+                        spec:
+                          type: object
+                          required:
+                            - containers
+                          properties:
+                            containers:
+                              type: array
+                              minItems: 1
+                              items:
+                                type: object
+                                required:
+                                  - image
+                                properties:
+                                  name:
+                                    type: string
+                                    minLength: 0
+                                    maxLength: 63
+                                    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                                  image:
+                                    type: string
+                                    minLength: 1
+                    container:
+                      title: The container name running the gameserver
+                      description: if there is more than one container, specify which one is the game server
+                      type: string
+                      minLength: 0
+                      maxLength: 63
+                      pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                    ports:
+                      title: array of ports to expose on the game server container
+                      type: array
+                      minItems: 1
+                      items:
+                        type: object
+                        properties:
+                          portPolicy:
+                            title: the port policy that will be applied to the game server
+                            description: |
+                              portPolicy has three options:
+                              - "Dynamic" (default) the system allocates a random free hostPort for the gameserver, for game clients to connect to
+                              - "Static", user defines the hostPort that the game client will connect to. Then onus is on the user to ensure that the
+                              port is available. When static is the policy specified, `hostPort` is required to be populated
+                              - "Passthrough" dynamically sets the `containerPort` to the same value as the dynamically selected hostPort.
+                              This will mean that users will need to lookup what port has been opened through the server side SDK.
+                            type: string
+                            enum:
+                              - Dynamic
+                              - Static
+                              - Passthrough
+                          protocol:
+                            title: Protocol being used. Defaults to UDP. TCP and TCPUDP are other options.
+                            type: string
+                            enum:
+                              - UDP
+                              - TCP
+                              - TCPUDP
+                          containerPort:
+                            title: The port that is being opened on the game server process
+                            type: integer
+                            minimum: 1
+                            maximum: 65535
+                          hostPort:
+                            title: The port exposed on the host
+                            description: Only required when `portPolicy` is "Static". Overwritten when portPolicy is "Dynamic" or "Passthrough".
+                            type: integer
+                            minimum: 1
+                            maximum: 65535
+                    sdkServer:
+                      type: object
+                      title: Parameters for the SDK Server (sidecar)
+                      properties:
+                        logLevel:
+                          type: string
+                          description: |
+                            sdkServer log level parameter has three options:
+                            - "Info" (default) The SDK server will output all messages except for debug messages
+                            - "Debug" The SDK server will output all messages including debug messages
+                            - "Error" The SDK server will only output error messages
+                          enum:
+                            - Error
+                            - Info
+                            - Debug
+                        grpcPort:
+                          title: The port on which the SDK server binds the gRPC server to accept incoming connections
+                          description: |
+                            The default gRPC port is 9020.
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                        httpPort:
+                          title: The port on which the SDK server binds the HTTP gRPC gateway server to accept incoming connections
+                          description: |
+                            The default HTTP port is 9021.
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                    scheduling:
+                      type: string
+                      enum:
+                        - MostAllocated
+                        - LeastAllocated
+                    health:
+                      type: object
+                      title: Health checking for the running game server
+                      properties:
+                        disabled:
+                          title: Disable health checking. defaults to false, but can be set to true
+                          type: boolean
+                        initialDelaySeconds:
+                          title: Number of seconds after the container has started before health check is initiated. Defaults to 5 seconds
+                          type: integer
+                          minimum: 0
+                          maximum: 2147483648
+                        periodSeconds:
+                          title: How long before the server is considered not healthy
+                          type: integer
+                          minimum: 0
+                          maximum: 2147483648
+                        failureThreshold:
+                          title: Minimum consecutive failures for the health probe to be considered failed after having succeeded.
+                          type: integer
+                          minimum: 1
+                          maximum: 2147483648
+  subresources:
+    # status enables the status subresource.
+    status: {}
+    # scale enables the scale subresource.
+    scale:
+      # specReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Spec.Replicas.
+      specReplicasPath: .spec.replicas
+      # statusReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Replicas.
+      statusReplicasPath: .status.replicas
+      # labelSelectorPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Selector.
+      labelSelectorPath: .status.selector
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: squads.carrier.ocgi.dev
+spec:
+  group: carrier.ocgi.dev
+  version: v1alpha1
+  scope: Namespaced
+  additionalPrinterColumns:
+    - JSONPath: .spec.scheduling
+      name: Scheduling
+      type: string
+    - JSONPath: .spec.replicas
+      name: Desired
+      type: integer
+    - JSONPath: .status.replicas
+      name: Current
+      type: integer
+    - JSONPath: .status.updatedReplicas
+      name: UP-TO-DATE
+      type: integer
+    - JSONPath: .status.readyReplicas
+      name: Ready
+      type: integer
+    - JSONPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+  names:
+    kind: Squad
+    plural: squads
+    shortNames:
+      - sqd
+    singular: squad
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          required:
+            - template
+          properties:
+            replicas:
+              type: integer
+              minimum: 0
+            scheduling:
+              type: string
+              enum:
+                - MostAllocated
+                - LeastAllocated
+            strategy:
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - Recreate
+                    - RollingUpdate
+                    - CanaryUpdate
+            template:
+              required:
+                - spec
+              properties:
+                spec:
+                  required:
+                    - template
+                  properties:
+                    template:
+                      type: object
+                      required:
+                        - spec
+                      properties:
+                        spec:
+                          type: object
+                          required:
+                            - containers
+                          properties:
+                            containers:
+                              type: array
+                              minItems: 1
+                              items:
+                                type: object
+                                required:
+                                  - image
+                                properties:
+                                  name:
+                                    type: string
+                                    minLength: 0
+                                    maxLength: 63
+                                    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                                  image:
+                                    type: string
+                                    minLength: 1
+                    ports:
+                      title: array of ports to expose on the game server container
+                      type: array
+                      minItems: 1
+                      items:
+                        type: object
+                        properties:
+                          portPolicy:
+                            title: the port policy that will be applied to the game server
+                            description: |
+                              portPolicy has three options:
+                              - "Dynamic" (default) the system allocates a random free hostPort for the gameserver, for game clients to connect to
+                              - "Static", user defines the hostPort that the game client will connect to. Then onus is on the user to ensure that the
+                              port is available. When static is the policy specified, `hostPort` is required to be populated
+                              - "Passthrough" dynamically sets the `containerPort` to the same value as the dynamically selected hostPort.
+                              This will mean that users will need to lookup what port has been opened through the server side SDK.
+                            type: string
+                            enum:
+                              - Dynamic
+                              - Static
+                              - Passthrough
+                          protocol:
+                            title: Protocol being used. Defaults to UDP. TCP and TCPUDP are other options.
+                            type: string
+                            enum:
+                              - UDP
+                              - TCP
+                              - TCPUDP
+                          containerPort:
+                            title: The port that is being opened on the game server process
+                            type: integer
+                            minimum: 1
+                            maximum: 65535
+                          hostPort:
+                            title: The port exposed on the host
+                            description: Only required when `portPolicy` is "Static". Overwritten when portPolicy is "Dynamic" or "Passthrough".
+                            type: integer
+                            minimum: 1
+                            maximum: 65535
+                    sdkServer:
+                      type: object
+                      title: Parameters for the SDK Server (sidecar)
+                      properties:
+                        logLevel:
+                          type: string
+                          description: |
+                            sdkServer log level parameter has three options:
+                            - "Info" (default) The SDK server will output all messages except for debug messages
+                            - "Debug" The SDK server will output all messages including debug messages
+                            - "Error" The SDK server will only output error messages
+                          enum:
+                            - Error
+                            - Info
+                            - Debug
+                        grpcPort:
+                          title: The port on which the SDK server binds the gRPC server to accept incoming connections
+                          description: |
+                            The default was 9020.
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                        httpPort:
+                          title: The port on which the SDK server binds the HTTP gRPC gateway server to accept incoming connections
+                          description: |
+                            The default was 9021.
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                    scheduling:
+                      type: string
+                      enum:
+                        - MostAllocated
+                        - LeastAllocated
+                    health:
+                      type: object
+                      title: Health checking for the running game server
+                      properties:
+                        disabled:
+                          title: Disable health checking. defaults to false, but can be set to true
+                          type: boolean
+                        initialDelaySeconds:
+                          title: Number of seconds after the container has started before health check is initiated. Defaults to 5 seconds
+                          type: integer
+                          minimum: 0
+                          maximum: 2147483648
+                        periodSeconds:
+                          title: How long before the server is considered not healthy
+                          type: integer
+                          minimum: 0
+                          maximum: 2147483648
+                        failureThreshold:
+                          title: Minimum consecutive failures for the health probe to be considered failed after having succeeded.
+                          type: integer
+                          minimum: 1
+                          maximum: 2147483648
+            revisionHistoryLimit:
+              type: integer
+              minimum: 0
+            paused:
+              type: boolean
+  subresources:
+    # status enables the status subresource.
+    status: {}
+    # scale enables the scale subresource.
+    scale:
+      # specReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Spec.Replicas.
+      specReplicasPath: .spec.replicas
+      # statusReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Replicas.
+      statusReplicasPath: .status.replicas
+      # labelSelectorPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Selector.
+      labelSelectorPath: .status.selector
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: webhookconfigurations.carrier.ocgi.dev
+spec:
+  group: carrier.ocgi.dev
+  version: v1alpha1
+  scope: Namespaced
+  names:
+    kind: WebhookConfiguration
+    plural: webhookconfigurations
+    shortNames:
+      - wc
+    singular: webhookconfiguration
+  validation:
+    openAPIV3Schema:
+      required:
+        - webhooks
+      properties:
+        webhooks:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - type
+              - name
+              - clientConfig
+            minItems: 1
+            properties:
+              name:
+                type: string
+                minLength: 1
+                maxLength: 128
+              type:
+                type: string
+                enum:
+                  - ReadinessWebhook
+                  - DeletableWebhook
+                  - ConstraintWebhook
+              clientConfig:
+                type: object
+                properties:
+                  url:
+                    type: string
+                  service:
+                    type: object
+                    requeired:
+                      - namespace
+                      - name
+                      - path
+                      - port
+                    properties:
+                      namespace:
+                        type: string
+                        minLength: 1
+                        maxLength: 128
+                        pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                      name:
+                        type: string
+                        minLength: 1
+                        maxLength: 128
+                        pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                      path:
+                        type: string
+                      port:
+                        type: integer
+                        minimum: 0

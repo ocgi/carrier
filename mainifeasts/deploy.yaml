@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: carrier
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: carrier
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: carrier
+    namespace: kube-system
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carrier
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: carrier-service
+  template:
+    metadata:
+      labels:
+        app: carrier-service
+    spec:
+      serviceAccountName: carrier
+      containers:
+        - args:
+          - --election-resource-lock=endpoints
+          - --sidecar-image=ocgi/carrier-sdkserver:940ed1fc0d1608
+          - --v=5
+          image: ocgi/carrier-controller:a76d8ec0a50ec9
+          imagePullPolicy: IfNotPresent
+          name: carrier-controller
