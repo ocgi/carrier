@@ -1,6 +1,6 @@
 # Carrier
 
-Carrier is a library for running and scaling [game servers](https://en.wikipedia.org/wiki/Game_server) on [Kubernetes](https://kubernetes.io/).
+Carrier is a [Kubernetes controller](https://kubernetes.io/docs/concepts/architecture/controller/) for running and scaling [game servers](https://en.wikipedia.org/wiki/Game_server) on [Kubernetes](https://kubernetes.io/).
 
 This project is inspired by [agones](https://github.com/googleforgames/agones).
 
