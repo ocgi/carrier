@@ -94,6 +94,12 @@ const (
 	GameServerDeletionCost = "carrier.ocgi.dev/gs-deletion-cost"
 	// GameServerDeletionMetrics is the metric name used by cost-server when sorting the candidate game servers
 	GameServerDeletionMetrics = "carrier.ocgi.dev/gs-cost-metrics-name"
+	// GameServerHash describes the pod spec hash of game server, it will be add to gameserver set's and gameserver's label
+	GameServerHash = "carrier.ocgi.dev/gameserver-template-hash"
+	// GameServerInPlaceUpdateAnnotation describes gameserver in place update info
+	GameServerInPlaceUpdateAnnotation = "carrier.ocgi.dev/inplace-update"
+	// GameServerInPlaceUpdatedReplicasAnnotation describes in place updated game server number
+	GameServerInPlaceUpdatedReplicasAnnotation = "carrier.ocgi.dev/inplace-updated-replicas"
 )
 
 var (

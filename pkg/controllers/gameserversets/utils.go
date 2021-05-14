@@ -70,6 +70,21 @@ func IsGameServerSetScaling(gsSet *carrierv1alpha1.GameServerSet) bool {
 	return false
 }
 
+// IsGameServerSetInPlaceUpdating check if the GameServerSet is updating GameServer in place.
+func IsGameServerSetInPlaceUpdating(gsSet *carrierv1alpha1.GameServerSet) (bool, int) {
+	if gsSet.Annotations == nil {
+		return false, 0
+	}
+	valStr, ok := gsSet.Annotations[util.GameServerInPlaceUpdateAnnotation]
+	if !ok {
+		return false, 0
+	}
+	if number, err := strconv.Atoi(valStr); err == nil {
+		return true, number
+	}
+	return false, 0
+}
+
 // ChangeScalingStatus remove the ScalingInProgress when scaling finishes
 func ChangeScalingStatus(gsSet *carrierv1alpha1.GameServerSet) []carrierv1alpha1.GameServerSetCondition {
 	var conditions []carrierv1alpha1.GameServerSetCondition

@@ -113,12 +113,8 @@ func NewController(
 	gsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: c.enqueueGameServerBasedOnState,
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldGs := oldObj.(*carrierv1alpha1.GameServer)
 			newGs := newObj.(*carrierv1alpha1.GameServer)
-			if oldGs.Status.State != newGs.Status.State || !reflect.DeepEqual(oldGs.Status.Conditions,
-				newGs.Status.Conditions) || oldGs.DeletionTimestamp != newGs.DeletionTimestamp {
-				c.enqueueGameServerBasedOnState(newGs)
-			}
+			c.enqueueGameServerBasedOnState(newGs)
 		},
 	})
 
@@ -378,6 +374,18 @@ func (c *Controller) syncGameServerStartingState(gs *carrierv1alpha1.GameServer)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+
+	if pod.Labels[util.GameServerHash] != gs.Labels[util.GameServerHash] {
+		podCopy := pod.DeepCopy()
+		updatePodSpec(gs, podCopy)
+		pod, err = c.kubeClient.CoreV1().Pods(podCopy.Namespace).Update(podCopy)
+		if err != nil {
+			c.recorder.Event(gs, corev1.EventTypeWarning, string(gs.Status.State),
+				fmt.Sprintf("Pod %v controlled by GameServer failed updated, reason: %v", gs.Name, err))
+			return gs, err
+		}
+	}
+
 	if gs.Status.State == carrierv1alpha1.GameServerRunning && pod.Status.Phase == corev1.PodRunning {
 		return gs, nil
 	}
@@ -405,6 +413,20 @@ func (c *Controller) syncGameServerRunningState(gs *carrierv1alpha1.GameServer) 
 		return gs, nil
 	}
 
+	pod, err := c.getGameServerPod(gs)
+	if err != nil {
+		return gs, err
+	}
+	if pod.Labels[util.GameServerHash] != gs.Labels[util.GameServerHash] {
+		klog.V(4).Infof("hash not equal start update %v", pod.Name)
+		podCopy := pod.DeepCopy()
+		updatePodSpec(gs, podCopy)
+		pod, err = c.kubeClient.CoreV1().Pods(podCopy.Namespace).Update(podCopy)
+		if err != nil {
+			return gs, err
+		}
+	}
+
 	switch gs.Status.State {
 	case carrierv1alpha1.GameServerExited, carrierv1alpha1.GameServerFailed, carrierv1alpha1.GameServerUnknown:
 		return gs, nil
@@ -415,10 +437,6 @@ func (c *Controller) syncGameServerRunningState(gs *carrierv1alpha1.GameServer) 
 		return gs, nil
 	}
 
-	pod, err := c.getGameServerPod(gs)
-	if err != nil {
-		return gs, err
-	}
 	changed, err := getReadyContainer(gs, pod)
 	if err != nil {
 		return gs, err

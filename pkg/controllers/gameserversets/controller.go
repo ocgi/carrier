@@ -143,7 +143,7 @@ func NewController(
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldGss := oldObj.(*carrierv1alpha1.GameServerSet)
 			newGss := newObj.(*carrierv1alpha1.GameServerSet)
-			if oldGss.Spec.Replicas != newGss.Spec.Replicas || !reflect.DeepEqual(oldGss.Annotations, newGss.Annotations) {
+			if !reflect.DeepEqual(oldGss, newGss) {
 				c.workerqueue.Enqueue(newGss)
 			}
 		},
@@ -317,7 +317,64 @@ func (c *Controller) manageReplicas(key string, list []*carrierv1alpha1.GameServ
 			}
 		}
 	}
-	return nil
+	klog.V(3).Infof("GameServerSet %v remove annotation success", gsSet.Name)
+	var err error
+	gsSet, err = c.syncGameServerSetStatus(gsSet, list)
+	if err != nil {
+		klog.Error(err)
+		return err
+	}
+	if status.Replicas-int32(len(toDeleteList))+int32(gameServersToAdd) != gsSet.Spec.Replicas {
+		return fmt.Errorf("GameServerSet %v actual replicas: %v, desired: %v, to delete %v, to add: %v", key,
+			gsSet.Status.Replicas, gsSet.Spec.Replicas, len(toDeleteList),
+			gameServersToAdd)
+	}
+	inplaceUpdating, count := IsGameServerSetInPlaceUpdating(gsSet)
+	if inplaceUpdating {
+		oldGameServers, newGameServers, err := c.getOldAndNewReplicas(gsSet)
+		if err != nil {
+			klog.Error(err)
+			return err
+		}
+		gap := count - len(newGameServers)
+		if gap <= 0 ||
+			gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] == fmt.Sprintf("%v", count) {
+			klog.V(4).Infof("desired replicas satisfied, desired: %v, new version: %v", count, len(newGameServers))
+			return nil
+		}
+
+		// update game servers
+		toUpdate := oldGameServers[0:gap]
+		if err = c.updateGameServers(gsSet, toUpdate); err != nil {
+			return err
+		}
+		gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = fmt.Sprintf("%v", count)
+		_, err = c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(gsSet)
+		return err
+	}
+	return err
+}
+
+func (c *Controller) getOldAndNewReplicas(gsSet *carrierv1alpha1.GameServerSet) ([]*carrierv1alpha1.GameServer, []*carrierv1alpha1.GameServer, error) {
+	newGameServers, err := c.gameServerLister.List(labels.SelectorFromSet(
+		labels.Set{
+			util.GameServerHash:               gsSet.Labels[util.GameServerHash],
+			util.GameServerSetGameServerLabel: gsSet.Name,
+		}),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	selector, err := labels.Parse(fmt.Sprintf("%s!=%s,%s=%s", util.GameServerHash, gsSet.Labels[util.GameServerHash], util.GameServerSetGameServerLabel,
+		gsSet.Name))
+	if err != nil {
+		return nil, nil, err
+	}
+	oldGameServers, err := c.gameServerLister.List(selector)
+	if err != nil {
+		return nil, nil, err
+	}
+	return oldGameServers, newGameServers, nil
 }
 
 // computeReconciliationAction computes the action to take to reconcile a game server set set given
@@ -393,6 +450,51 @@ func computeReconciliationAction(strategy carrierv1alpha1.SchedulingStrategy, li
 		toDeleteGameServers = append(toDeleteGameServers, potentialDeletions[0:toDelete]...)
 	}
 	return toAdd, toDeleteGameServers, partialReconciliation
+}
+
+// updateGameServers update game server spec to api server
+func (c *Controller) updateGameServers(gsSet *carrierv1alpha1.GameServerSet, toUpdate []*carrierv1alpha1.GameServer) error {
+	klog.Infof("Updating gameservers: %v, to update %v", gsSet.Name, len(toUpdate))
+	var errs []error
+	workqueue.ParallelizeUntil(context.Background(), maxDeletionParallelism, len(toUpdate), func(piece int) {
+		gs := toUpdate[piece]
+		updateGameServerSpec(gsSet, gs)
+		_, err := c.gameServerGetter.GameServers(gs.Namespace).Update(gs)
+		if err != nil {
+			errs = append(errs, errors.Wrapf(err, "error updating gameserver %s from status %s to exited status", gs.Name, gs.Status.State))
+			return
+		}
+
+		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "SuccessfulUpdate", "Update gameserver in state %s: %v", gs.Status.State, gs.Name)
+	})
+	if len(errs) > 0 {
+		return errs[0]
+	}
+	return nil
+}
+
+// updateGameServerSpec update game server spec, include, image and resource.
+func updateGameServerSpec(gsSet *carrierv1alpha1.GameServerSet, gs *carrierv1alpha1.GameServer) {
+	var image string
+	var resources corev1.ResourceRequirements
+	var env []corev1.EnvVar
+	gs.Labels[util.GameServerHash] = gsSet.Labels[util.GameServerHash]
+	for _, container := range gsSet.Spec.Template.Spec.Template.Spec.Containers {
+		if container.Name != util.GameServerContainerName {
+			continue
+		}
+		image = container.Image
+		resources = container.Resources
+		env = container.Env
+	}
+	for i, container := range gs.Spec.Template.Spec.Containers {
+		if container.Name != util.GameServerContainerName {
+			continue
+		}
+		gs.Spec.Template.Spec.Containers[i].Image = image
+		gs.Spec.Template.Spec.Containers[i].Resources = resources
+		gs.Spec.Template.Spec.Containers[i].Env = env
+	}
 }
 
 // createGameServers adds diff more GameServers to the set

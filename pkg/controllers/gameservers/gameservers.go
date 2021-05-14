@@ -464,3 +464,53 @@ func addSDKServerEnv(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 		pod.Spec.Containers[i] = *c
 	}
 }
+
+// updatePodSpec update game server spec, include, image and resource.
+func updatePodSpec(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
+	var image string
+	var resources corev1.ResourceRequirements
+	var env []corev1.EnvVar
+	pod.Labels[util.GameServerHash] = gs.Labels[util.GameServerHash]
+	for _, container := range gs.Spec.Template.Spec.Containers {
+		if container.Name != util.GameServerContainerName {
+			continue
+		}
+		image = container.Image
+		resources = container.Resources
+		env = container.Env
+	}
+	for i, container := range pod.Spec.Containers {
+		if container.Name != util.GameServerContainerName {
+			continue
+		}
+		pod.Spec.Containers[i].Image = image
+		for name, quantity := range resources.Limits {
+			if pod.Spec.Containers[i].Resources.Limits == nil {
+				pod.Spec.Containers[i].Resources.Limits = corev1.ResourceList{}
+			}
+			pod.Spec.Containers[i].Resources.Limits[name] = quantity
+		}
+		for name, quantity := range resources.Requests {
+			if pod.Spec.Containers[i].Resources.Requests == nil {
+				pod.Spec.Containers[i].Resources.Requests = corev1.ResourceList{}
+			}
+			pod.Spec.Containers[i].Resources.Requests[name] = quantity
+		}
+		pod.Spec.Containers[i].Resources = resources
+		for _, newEnv := range env {
+			var found bool
+			for ei, oldEnv := range pod.Spec.Containers[i].Env {
+				if oldEnv.Name != newEnv.Name {
+					continue
+				}
+				pod.Spec.Containers[i].Env[ei].Value = newEnv.Value
+				pod.Spec.Containers[i].Env[ei].ValueFrom = newEnv.ValueFrom
+				found = true
+				break
+			}
+			if !found {
+				pod.Spec.Containers[i].Env = append(pod.Spec.Containers[i].Env, newEnv)
+			}
+		}
+	}
+}
