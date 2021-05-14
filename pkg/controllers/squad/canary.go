@@ -19,11 +19,13 @@ import (
 	"sort"
 
 	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 	"k8s.io/utils/integer"
 
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
+	"github.com/ocgi/carrier/pkg/util"
+	"github.com/ocgi/carrier/pkg/util/kube"
 )
 
 // rolloutCanary implements the logic for canary update a GameServerSet.
@@ -37,7 +39,7 @@ func (c *Controller) rolloutCanary(squad *carrierv1alpha1.Squad, gsSetList []*ca
 	case carrierv1alpha1.DeleteFirstGameServerStrategyType:
 		return c.deleteFirst(squad, gsSetList)
 	case carrierv1alpha1.InplaceGameServerStrategyType:
-		return errors.New("no support for in-place")
+		return c.inplace(squad, gsSetList)
 	}
 	return errors.Errorf("No gameserver strategy type found for squad: %v", squad.ObjectMeta)
 }
@@ -212,8 +214,66 @@ func (c *Controller) scaleDownOldGameServerSetsForCanary(allGSSets []*carrierv1a
 // clearThreshold sets .spec.strategy.canaryUpdate.threshold to zero and update the input Squad
 func (c *Controller) clearThreshold(squad *carrierv1alpha1.Squad) error {
 	klog.V(4).Infof("Cleans up threshold (%v) of squad %q", squad.Spec.Strategy.CanaryUpdate, squad.Name)
-	threshold := intstr.FromInt(0)
-	squad.Spec.Strategy.CanaryUpdate.Threshold = &threshold
-	_, err := c.squadGetter.Squads(squad.Namespace).Update(squad)
+	squadCopy := squad.DeepCopy()
+	squadCopy.Spec.Strategy.CanaryUpdate.Threshold = nil
+	patch, err := kube.CreateMergePatch(squad, squadCopy)
+	if err != nil {
+		return err
+	}
+	_, err = c.squadGetter.Squads(squad.Namespace).Patch(squad.Name, types.MergePatchType, patch)
+	return err
+}
+
+// inplace update gameserver in-place
+func (c *Controller) inplace(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet) error {
+	newGSSet, isFirstCreate, err := c.findOrCreateGameServerSet(squad, gsSetList)
+	if err != nil {
+		return err
+	}
+
+	var allGSSet []*carrierv1alpha1.GameServerSet
+	allGSSet = append(allGSSet, gsSetList...)
+
+	threshold := CanaryThreshold(*squad)
+	if threshold == 0 || isFirstCreate {
+		// Do nothing if the threshold is zero
+		// or the first creation
+		if isFirstCreate {
+			if err := c.clearThreshold(squad); err != nil {
+				klog.Errorf("clear threshold failed: %v", err)
+				return err
+			}
+			allGSSet = append(allGSSet, newGSSet)
+		}
+		return c.syncRolloutStatus(allGSSet, newGSSet, squad)
+	}
+	// update gameserver set
+	SetGameServerSetInplaceUpdateAnnotations(newGSSet, squad)
+	SetGameServerSetInplaceUpdateLabels(newGSSet)
+	newGSSet.Spec.Template.Spec.Template.Spec = *squad.Spec.Template.Spec.Template.Spec.DeepCopy()
+	_, err = c.gameServerSetGetter.GameServerSets(newGSSet.Namespace).Update(newGSSet)
+	if err != nil {
+		return err
+	}
+	if threshold < squad.Spec.Replicas {
+		return c.syncRolloutStatus(allGSSet, newGSSet, squad)
+	}
+	if SquadComplete(squad, &squad.Status) {
+		if err := c.cleanupGameServerSet(newGSSet); err != nil {
+			return err
+		}
+		if err := c.clearThreshold(squad); err != nil {
+			return err
+		}
+	}
+	// Sync Squad status
+	return c.syncRolloutStatus(allGSSet, newGSSet, squad)
+}
+
+func (c *Controller) cleanupGameServerSet(gsSet *carrierv1alpha1.GameServerSet) error {
+	klog.V(4).Infof("Cleans up in-place update annotations of gameserver set %q", gsSet.Name)
+	delete(gsSet.Annotations, util.GameServerInPlaceUpdateAnnotation)
+	delete(gsSet.Annotations, util.GameServerInPlaceUpdatedReplicasAnnotation)
+	_, err := c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(gsSet)
 	return err
 }

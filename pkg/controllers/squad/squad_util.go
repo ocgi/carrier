@@ -102,7 +102,11 @@ func GetActualReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameSer
 	totalActualReplicas := int32(0)
 	for _, gsSet := range gsSetList {
 		if gsSet != nil {
-			totalActualReplicas += gsSet.Status.Replicas
+			if _, ok := gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation]; ok {
+				totalActualReplicas += GetGameServerSetInplaceUpdateStatus(gsSet)
+			} else {
+				totalActualReplicas += gsSet.Status.Replicas
+			}
 		}
 	}
 	return totalActualReplicas
@@ -180,6 +184,8 @@ func EqualGameServerTemplate(template1, template2 *carrierv1alpha1.GameServerTem
 	// Remove specific labels from template.Labels before comparing
 	delete(t1Copy.Labels, util.SquadNameLabel)
 	delete(t2Copy.Labels, util.SquadNameLabel)
+	delete(t1Copy.Labels, util.GameServerHash)
+	delete(t2Copy.Labels, util.GameServerHash)
 	return apiequality.Semantic.DeepEqual(t1Copy, t2Copy)
 }
 
@@ -290,6 +296,12 @@ func IsRollingUpdate(squad *carrierv1alpha1.Squad) bool {
 // IsCanaryUpdate returns true if the strategy type is a canary update.
 func IsCanaryUpdate(squad *carrierv1alpha1.Squad) bool {
 	return squad.Spec.Strategy.Type == carrierv1alpha1.CanaryUpdateSquadStrategyType
+}
+
+// IsInplaceUpdate returns true if the strategy type is a in-place update
+func IsInplaceUpdate(squad *carrierv1alpha1.Squad) bool {
+	return squad.Spec.Strategy.Type == carrierv1alpha1.CanaryUpdateSquadStrategyType &&
+		squad.Spec.Strategy.CanaryUpdate.Type == carrierv1alpha1.InplaceGameServerStrategyType
 }
 
 // MaxSurge returns the maximum surge GameServers a rolling squad can take.
@@ -664,6 +676,48 @@ func ComputeHash(template *carrierv1alpha1.GameServerTemplateSpec) string {
 	hash.DeepHashObject(gsTemplateSpecHasher, *template)
 
 	return rand.SafeEncodeString(fmt.Sprint(gsTemplateSpecHasher.Sum32()))
+}
+
+// SetGameServerSetInplaceUpdateLabels setting pod spec hash to gameserver set labels
+func SetGameServerSetInplaceUpdateLabels(gsSet *carrierv1alpha1.GameServerSet) {
+	podSpecHash := ComputePodSpecHash(&gsSet.Spec.Template.Spec.Template.Spec)
+	if gsSet.Labels == nil {
+		gsSet.Labels = make(map[string]string)
+	}
+	gsSet.Labels[util.GameServerHash] = podSpecHash
+	if gsSet.Spec.Template.Labels == nil {
+		gsSet.Spec.Template.Labels = make(map[string]string)
+	}
+	gsSet.Spec.Template.Labels[util.GameServerHash] = podSpecHash
+}
+
+// SetGameServerSetInplaceUpdateAnnotations setting gameserver set annotations when in-place update
+func SetGameServerSetInplaceUpdateAnnotations(gsSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) {
+	if gsSet.Annotations == nil {
+		gsSet.Annotations = make(map[string]string)
+	}
+	gsSet.Annotations[util.GameServerInPlaceUpdateAnnotation] = strconv.Itoa(int(CanaryThreshold(*squad)))
+}
+
+// GetGameServerSetInplaceUpdateStatus get the current number of updated replicas
+func GetGameServerSetInplaceUpdateStatus(gsSet *carrierv1alpha1.GameServerSet) int32 {
+	if gsSet.Annotations == nil {
+		return 0
+	}
+	val, ok := gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation]
+	if !ok {
+		return 0
+	}
+	replicas, _ := strconv.Atoi(val)
+	return int32(replicas)
+}
+
+// ComputePodSpecHash return the hash value of the podspec
+func ComputePodSpecHash(spec *corev1.PodSpec) string {
+	gsTemplateHasher := fnv.New32a()
+	hash.DeepHashObject(gsTemplateHasher, *spec)
+
+	return rand.SafeEncodeString(fmt.Sprint(gsTemplateHasher.Sum32()))
 }
 
 // GameServerSetsByCreationTimestamp sorts a list of gameserver set by creation timestamp, using their names as a tie breaker.

@@ -97,7 +97,7 @@ const (
 	// GameServerHash describes the pod spec hash of game server, it will be add to gameserver set's and gameserver's label
 	GameServerHash = "carrier.ocgi.dev/gameserver-template-hash"
 	// GameServerInPlaceUpdateAnnotation describes gameserver in place update info
-	GameServerInPlaceUpdateAnnotation = "carrier.ocgi.dev/inplace-update"
+	GameServerInPlaceUpdateAnnotation = "carrier.ocgi.dev/inplace-update-threshold"
 	// GameServerInPlaceUpdatedReplicasAnnotation describes in place updated game server number
 	GameServerInPlaceUpdatedReplicasAnnotation = "carrier.ocgi.dev/inplace-updated-replicas"
 )

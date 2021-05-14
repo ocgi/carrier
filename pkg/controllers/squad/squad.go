@@ -154,6 +154,27 @@ func (c *Controller) getAllGameServerSetsAndSyncRevision(squad *carrierv1alpha1.
 	return newGSSet, allOldGSSets, nil
 }
 
+// findOrCreateGameServerSet returns the active or latest gameserver set, or create new one on the first time
+func (c *Controller) findOrCreateGameServerSet(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet) (*carrierv1alpha1.GameServerSet, bool, error) {
+	var (
+		allOldGSSets  []*carrierv1alpha1.GameServerSet
+		newGSSet      *carrierv1alpha1.GameServerSet
+		err           error
+		isFirstCreate bool = false
+	)
+	if len(gsSetList) == 0 {
+		isFirstCreate = true
+		newGSSet, err = c.getNewGameServerSet(squad, gsSetList, allOldGSSets, true)
+		return newGSSet, isFirstCreate, err
+	}
+	// when update squad
+	newGSSet = FindActiveOrLatest(nil, gsSetList)
+	if newGSSet == nil {
+		return nil, isFirstCreate, fmt.Errorf("cannot find the active or latest gameserver set")
+	}
+	return newGSSet, isFirstCreate, nil
+}
+
 // Returns a gameserver set that matches the intent of the given Squad. Returns nil if the new gameserver set doesn't exist yet.
 // 1. Get existing new GameServerSet (the GameServerSet that the given Squad targets, whose GameServer template is the same as Squad's).
 // 2. If there's existing new GameServerSet, update its revision number if it's smaller than (maxOldRevision + 1), where maxOldRevision is the max revision number among all old GameServerSetes.
@@ -223,11 +244,15 @@ func (c *Controller) getNewGameServerSet(squad *carrierv1alpha1.Squad, gsSetList
 		newGSSet.ObjectMeta.Labels = make(map[string]string)
 	}
 	newGSSet.ObjectMeta.Labels[util.SquadNameLabel] = squad.Name
+	SetGameServerSetInplaceUpdateLabels(&newGSSet)
 
 	allGSSets := append(oldGSSets, &newGSSet)
 	newReplicasCount, err := NewGSSetNewReplicas(squad, allGSSets, &newGSSet)
 	if err != nil {
 		return nil, err
+	}
+	if IsInplaceUpdate(squad) {
+		newReplicasCount = squad.Spec.Replicas
 	}
 
 	newGSSet.Spec.Replicas = newReplicasCount
