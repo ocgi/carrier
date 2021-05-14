@@ -1,4 +1,4 @@
-// Copyright 2020 THL A29 Limited, a Tencent company.
+// Copyright 2021 The OCGI Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/ocgi/carrier/pkg/apis"
 	"github.com/ocgi/carrier/pkg/apis/carrier"
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
 	"github.com/ocgi/carrier/pkg/util"
@@ -108,7 +107,7 @@ func applyPortDefaults(gss *carrierv1alpha1.GameServerSpec) {
 
 func applySchedulingDefaults(gss *carrierv1alpha1.GameServerSpec) {
 	if gss.Scheduling == "" {
-		gss.Scheduling = apis.MostAllocated
+		gss.Scheduling = carrierv1alpha1.MostAllocated
 	}
 }
 
@@ -262,7 +261,7 @@ func podObjectMeta(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 
 // injectPodScheduling helps inject podAffinity to podSpec if the policy is `MostAllocated`
 func injectPodScheduling(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
-	if gs.Spec.Scheduling == apis.MostAllocated {
+	if gs.Spec.Scheduling == carrierv1alpha1.MostAllocated {
 		if pod.Spec.Affinity == nil {
 			pod.Spec.Affinity = &corev1.Affinity{}
 		}

@@ -1,4 +1,4 @@
-// Copyright 2020 THL A29 Limited, a Tencent company.
+// Copyright 2021 The OCGI Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
-	"github.com/ocgi/carrier/pkg/apis"
 	"github.com/ocgi/carrier/pkg/apis/carrier"
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
 	"github.com/ocgi/carrier/pkg/client/clientset/versioned"
@@ -328,7 +327,7 @@ func (c *Controller) syncGameServerSet(key string) error {
 
 // computeReconciliationAction computes the action to take to reconcile a game server set set given
 // the list of game servers that were found and target replica count.
-func computeReconciliationAction(strategy apis.SchedulingStrategy, list []*carrierv1alpha1.GameServer,
+func computeReconciliationAction(strategy carrierv1alpha1.SchedulingStrategy, list []*carrierv1alpha1.GameServer,
 	counts *Counter, targetReplicaCount int, maxCreations int, maxDeletions int,
 	maxPending int, scaling bool) (int, []*carrierv1alpha1.GameServer, bool) {
 	var upCount int     // up == Ready or will become ready
@@ -591,13 +590,13 @@ func gameServerOutOfServiceCount(gsList []*carrierv1alpha1.GameServer) int {
 	return count
 }
 
-func sortGameServers(potentialDeletions []*carrierv1alpha1.GameServer, strategy apis.SchedulingStrategy, counter *Counter) []*carrierv1alpha1.GameServer {
+func sortGameServers(potentialDeletions []*carrierv1alpha1.GameServer, strategy carrierv1alpha1.SchedulingStrategy, counter *Counter) []*carrierv1alpha1.GameServer {
 	if len(potentialDeletions) == 0 {
 		return potentialDeletions
 	}
 	potentialDeletions = sortGameServersByCost(potentialDeletions)
 	if cost, _ := GetDeletionCostFromGameServerAnnotations(potentialDeletions[0].Annotations); cost == int64(math.MaxInt64) {
-		if strategy == apis.MostAllocated {
+		if strategy == carrierv1alpha1.MostAllocated {
 			potentialDeletions = sortGameServersByPodNum(potentialDeletions, counter)
 		} else {
 			potentialDeletions = sortGameServersByCreationTime(potentialDeletions)

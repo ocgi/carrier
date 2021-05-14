@@ -1,4 +1,4 @@
-# Copyright 2019 The OCGI Authors.
+# Copyright 2021 The OCGI Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ build-controller:
 	mkdir -p bin
 	go fmt ./pkg/...
 	go vet ./pkg/...
-	CGO_ENABLED=0 GOOS=linux go build -ldflags "-X '$(VERSION_KEY)=$(VERSION)' -X '$(COMMIT_KEY)=$(GIT_COMMIT)' -X '$(BUILDTIME_KEY)=$(BUILD_TIME)'" -o ./bin/controller ./cmd/controller
+	CGO_ENABLED=0 go build -ldflags "-X '$(VERSION_KEY)=$(VERSION)' -X '$(COMMIT_KEY)=$(GIT_COMMIT)' -X '$(BUILDTIME_KEY)=$(BUILD_TIME)'" -o ./bin/controller ./cmd/controller
 
 container: build
 	docker build -t $(REGISTRY_NAME)/carrier-controller:$(VERSION) -f $(shell if [ -e ./cmd/controller/Dockerfile ]; then echo ./cmd/controller/Dockerfile; else echo Dockerfile; fi) --label revision=$(REV) .

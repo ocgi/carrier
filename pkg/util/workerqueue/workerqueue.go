@@ -1,4 +1,4 @@
-// Copyright 2020 THL A29 Limited, a Tencent company.
+// Copyright 2021 The OCGI Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,10 +25,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
-)
-
-const (
-	workFx = time.Second
 )
 
 // Handler  processing the work queue
@@ -161,5 +157,5 @@ func (wq *WorkerQueue) Run(workers int, stop <-chan struct{}) {
 }
 
 func (wq *WorkerQueue) run(stop <-chan struct{}) {
-	wait.Until(wq.runWorker, workFx, stop)
+	wait.Until(wq.runWorker, time.Second, stop)
 }

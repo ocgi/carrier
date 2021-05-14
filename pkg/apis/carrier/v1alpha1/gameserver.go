@@ -1,4 +1,4 @@
-// Copyright 2020 THL A29 Limited, a Tencent company.
+// Copyright 2021 The OCGI Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,8 +17,6 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/ocgi/carrier/pkg/apis"
 )
 
 // +genclient
@@ -54,7 +52,7 @@ type GameServerSpec struct {
 	// Ports are the array of ports that can be exposed via the GameServer.
 	Ports []GameServerPort `json:"ports"`
 	// Scheduling strategy. Defaults to "MostAllocated".
-	Scheduling apis.SchedulingStrategy `json:"scheduling,omitempty"`
+	Scheduling SchedulingStrategy `json:"scheduling,omitempty"`
 	// SdkServer specifies parameters for the Carrier SDK Server sidecar container.
 	SdkServer SdkServer `json:"sdkServer,omitempty"`
 	// Health configures health checking.
@@ -81,6 +79,22 @@ type GameServerSpec struct {
 	// +optional
 	DeletableGates []string `json:"deletableGates,omitempty"`
 }
+
+// SchedulingStrategy is the strategy that a Squad & GameServers will use
+// when scheduling GameServers' Pods across a cluster.
+type SchedulingStrategy string
+
+const (
+	// MostAllocated strategy will allocate GameServers
+	// on Nodes with the most allocated by inject PodInterAffinity.
+	// For dynamic clusters, this Strategy will may cause less GameServers migration when clusters auto scale.
+	MostAllocated SchedulingStrategy = "MostAllocated"
+
+	// LeastAllocated strategy will prioritise allocating GameServers
+	// on Nodes with the least allocated(scheduler default).
+	// For dynamic clusters, this Strategy will may cause more GameServers migration when clusters auto scale.
+	LeastAllocated SchedulingStrategy = "LeastAllocated"
+)
 
 // PortPolicy is the port policy for the GameServer
 type PortPolicy string
@@ -190,7 +204,7 @@ const (
 	GameServerStarting GameServerState = "Starting"
 	// GameServerRunning means the pod phase of GameServer is Running
 	GameServerRunning GameServerState = "Running"
-	// GameServerSucceeded means GameServer has exited
+	// GameServerExited means GameServer has exited
 	GameServerExited GameServerState = "Exited"
 	// GameServerFailed means the pod phase of GameServer is Failed
 	GameServerFailed GameServerState = "Failed"
@@ -265,7 +279,7 @@ type LoadBalancerIngress struct {
 	Ports []LoadBalancerPort `json:"ports"`
 }
 
-// LoadBalancerPort
+// LoadBalancerPort describes load balancer info
 type LoadBalancerPort struct {
 	// Name is the load balancer name
 	Name string `json:"name,omitempty"`

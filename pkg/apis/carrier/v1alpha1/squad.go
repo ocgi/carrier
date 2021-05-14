@@ -1,4 +1,4 @@
-// Copyright 2020 THL A29 Limited, a Tencent company.
+// Copyright 2021 The OCGI Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,8 +18,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"github.com/ocgi/carrier/pkg/apis"
 )
 
 // +genclient
@@ -53,7 +51,7 @@ type SquadSpec struct {
 	// Squad strategy,one of ReCreate, RollingUpdate, CanaryUpdate.
 	Strategy SquadStrategy `json:"strategy"`
 	// Scheduling strategy. Defaults to "MostAllocated".
-	Scheduling apis.SchedulingStrategy `json:"scheduling,omitempty"`
+	Scheduling SchedulingStrategy `json:"scheduling,omitempty"`
 	// Template the GameServer template to apply for this Squad
 	Template GameServerTemplateSpec `json:"template"`
 	// The number of old GameServerSets to retain to allow rollback.
@@ -86,7 +84,7 @@ type SquadStrategy struct {
 	CanaryUpdate *CanaryUpdateSquad `json:"canaryUpdate,omitempty"`
 }
 
-// Spec to control the desired behavior of rolling update.
+// RollingUpdateSquad controls the desired behavior of rolling update.
 type RollingUpdateSquad struct {
 	// The maximum number of GameServers that can be unavailable during the update.
 	// Value can be an absolute number (ex: 5) or a percentage of total GameServers at the start of update (ex: 10%).
@@ -112,7 +110,7 @@ type RollingUpdateSquad struct {
 	MaxSurge *intstr.IntOrString `json:"maxSurge"`
 }
 
-// Spec to control the desired behavior of canary update.
+// CanaryUpdateSquad controls the desired behavior of canary update.
 type CanaryUpdateSquad struct {
 	// Type of update gameserver. Can be "deleteFirst" or "createFirst" or "inplace". Default is "createFirst".
 	Type GameServerStrategyType `json:"type"`
@@ -125,22 +123,22 @@ type CanaryUpdateSquad struct {
 type GameServerStrategyType string
 
 const (
-	// Kill gameserver before creating new ones
+	// DeleteFirstGameServerStrategyType kill gameserver before creating new ones
 	DeleteFirstGameServerStrategyType GameServerStrategyType = "deleteFirst"
-	// Create new gameserver before kill the old ones
+	// CreateFirstGameServerStrategyType create new gameserver before kill the old ones
 	CreateFirstGameServerStrategyType GameServerStrategyType = "createFirst"
-	// Update gameservers in-place
+	// InplaceGameServerStrategyType update gameservers in-place
 	InplaceGameServerStrategyType GameServerStrategyType = "inplace"
 )
 
 type SquadStrategyType string
 
 const (
-	// Kill all existing GameServers before creating new ones.
+	// RecreateSquadStrategyType Kill all existing GameServers before creating new ones.
 	RecreateSquadStrategyType SquadStrategyType = "Recreate"
-	// Replace the old GameServerSets by new one using rolling update i.e gradually scale down the old GameServerSets and scale up the new one.
+	// RollingUpdateSquadStrategyType Replace the old GameServerSets by new one using rolling update i.e gradually scale down the old GameServerSets and scale up the new one.
 	RollingUpdateSquadStrategyType SquadStrategyType = "RollingUpdate"
-	// Replace the old GameServerSets by new one using canary update, you can specify the updated threshold
+	// CanaryUpdateSquadStrategyType Replace the old GameServerSets by new one using canary update, you can specify the updated threshold
 	CanaryUpdateSquadStrategyType SquadStrategyType = "CanaryUpdate"
 )
 
@@ -164,12 +162,12 @@ type SquadConditionType string
 
 // These are valid conditions of a Squad.
 const (
-	// Progressing means the Squad is progressing. Progress for a Squad is
+	// SquadProgressing means the Squad is progressing. Progress for a Squad is
 	// considered when a new GameServer set is created or adopted, and when new GameServers scale
 	// up or old GameServers scale down. Progress is not estimated for paused Squad or
 	// when progressDeadlineSeconds is not specified.
 	SquadProgressing SquadConditionType = "Progressing"
-	// ReplicaFailure is added in a Squad when one of its GameServers fails to be created
+	// SquadReplicaFailure is added in a Squad when one of its GameServers fails to be created
 	// or deleted.
 	SquadReplicaFailure SquadConditionType = "ReplicaFailure"
 )

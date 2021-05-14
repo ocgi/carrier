@@ -1,4 +1,4 @@
-// Copyright 2020 THL A29 Limited, a Tencent company.
+// Copyright 2021 The OCGI Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,8 +17,6 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/ocgi/carrier/pkg/apis"
 )
 
 // +genclient
@@ -50,7 +48,7 @@ type GameServerSetSpec struct {
 	// Replicas are the number of GameServers that should be in this set
 	Replicas int32 `json:"replicas"`
 	// Scheduling strategy. Defaults to "MostAllocated".
-	Scheduling apis.SchedulingStrategy `json:"scheduling,omitempty"`
+	Scheduling SchedulingStrategy `json:"scheduling,omitempty"`
 	// Template the GameServer template to apply for this GameServerSet
 	Template GameServerTemplateSpec `json:"template"`
 	// Selector is a label query over pods that should match the replica count.
