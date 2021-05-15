@@ -61,7 +61,7 @@ Build and deploy the Carrier.
 
 ```shell script
 # kubectl apply -f config/crd.yaml
-# kubectl apply -f mainifeasts/deploy.yaml
+# kubectl apply -f manifeasts/deploy.yaml
 ```
 
 ## Documentation

@@ -474,7 +474,7 @@ func (c *Controller) syncGameServerExitedAndFailedState(gs *carrierv1alpha1.Game
 	// be explicit about where to delete.
 	p := metav1.DeletePropagationBackground
 	err := c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Delete(gs.Name, &metav1.DeleteOptions{PropagationPolicy: &p})
-	if err != nil {
+	if err != nil && !k8serrors.IsNotFound(err) {
 		return errors.Wrapf(err, "error deleting GameServer %s", gs.Name)
 	}
 	c.recorder.Event(gs, corev1.EventTypeNormal, string(gs.Status.State),

@@ -47,6 +47,15 @@ func FastRateLimiter() workqueue.RateLimiter {
 	return workqueue.NewItemFastSlowRateLimiter(fastDelay, slowDelay, numFastRetries)
 }
 
+// ServerSetRateLimiter returns a rate limiter without exponential back-off, with specified maximum per-item retry delay.
+func ServerSetRateLimiter() workqueue.RateLimiter {
+	const numFastRetries = 5
+	const fastDelay = 1 * time.Second // first few retries up to 'numFastRetries' are fast
+	const slowDelay = 5 * time.Second // subsequent retries are slow
+
+	return workqueue.NewItemFastSlowRateLimiter(fastDelay, slowDelay, numFastRetries)
+}
+
 // NewWorkerQueue returns a new worker queue for a given name
 func NewWorkerQueue(handler Handler, queueName string) *WorkerQueue {
 	return NewWorkerQueueWithRateLimiter(handler, queueName, workqueue.DefaultControllerRateLimiter())

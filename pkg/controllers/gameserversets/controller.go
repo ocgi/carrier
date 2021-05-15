@@ -128,7 +128,8 @@ func NewController(
 		gameServerSetSynced: gsSetInformer.HasSynced,
 	}
 
-	c.workerqueue = workerqueue.NewWorkerQueueWithRateLimiter(c.syncGameServerSet, carrier.GroupName+".GameServerSetController", workerqueue.FastRateLimiter())
+	c.workerqueue = workerqueue.NewWorkerQueueWithRateLimiter(c.syncGameServerSet,
+		carrier.GroupName+".GameServerSetController", workerqueue.ServerSetRateLimiter())
 	s := scheme.Scheme
 	// Register operator types with the runtime scheme.
 	s.AddKnownTypes(carrierv1alpha1.SchemeGroupVersion, &carrierv1alpha1.GameServerSet{})
@@ -228,7 +229,7 @@ func (c *Controller) syncGameServerSet(key string) error {
 		return nil
 	}
 	klog.V(2).Infof("Sync gameServerSet %v", key)
-	gsSet, err := c.gameServerSetLister.GameServerSets(namespace).Get(name)
+	gsSetInCache, err := c.gameServerSetLister.GameServerSets(namespace).Get(name)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			klog.V(3).Info("GameServerSet is no longer available for syncing")
@@ -236,6 +237,7 @@ func (c *Controller) syncGameServerSet(key string) error {
 		}
 		return errors.Wrapf(err, "error retrieving GameServerSet %s from namespace %s", name, namespace)
 	}
+	gsSet := gsSetInCache.DeepCopy()
 	status := *gsSet.Status.DeepCopy()
 	if gsSet.Annotations[util.ScalingReplicasAnnotation] == "true" {
 		klog.V(3).Infof("GameServerSet %v required scaling", gsSet.Name)
@@ -249,67 +251,13 @@ func (c *Controller) syncGameServerSet(key string) error {
 	}
 	klog.V(3).Infof("Mark GameServerSet %v scaling condition "+
 		"successfully, conditions: %+v", gsSet.Name, gsSet.Status.Conditions)
-
 	list, err := ListGameServersByGameServerSetOwner(c.gameServerLister, gsSet)
 	if err != nil {
 		return err
 	}
-
-	scaling := IsGameServerSetScaling(gsSet)
-	klog.Infof("Current game server number of GameServerSet %v: %v", key, len(list))
-	numServersToAdd, toDeleteList, isPartial := computeReconciliationAction(gsSet.Spec.Scheduling, list, c.counter,
-		int(gsSet.Spec.Replicas), maxGameServerCreationsPerBatch, maxGameServerDeletionsPerBatch, maxPodPendingCount, scaling)
-	status = computeStatus(list)
-	klog.V(5).Infof("Reconciling GameServerSet name: %v, spec: %v, status: %v", key, gsSet.Spec, status)
-	if isPartial {
-		// we've determined that there's work to do, but we've decided not to do all the work in one shot
-		// make sure we get a follow-up, by re-scheduling this GSS in the worker queue immediately before this
-		// function returns
-		defer c.workerqueue.EnqueueImmediately(gsSet)
-	}
-	klog.V(2).Infof("GameSeverSet: %v toAdd: %v, toDelete: %v, list: %+v", key, numServersToAdd, len(toDeleteList), toDeleteList)
-	if numServersToAdd > 0 {
-		if err := c.addMoreGameServers(gsSet, numServersToAdd); err != nil {
-			klog.Errorf("error adding game servers: %v", err)
-		}
-	}
-
-	if len(toDeleteList) > 0 {
-		// GameServers can be deleted directly.
-		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "ToDelete", "Created GameServer: %+v, can delete: %v", len(list), len(toDeleteList))
-		if err := c.deleteGameServers(gsSet, toDeleteList); err != nil {
-			klog.Errorf("error deleting game servers: %v", err)
-			return err
-		}
-	} else {
-		// GameServers must wait before be deleted.
-		count := gameServerOutOfServiceCount(list)
-		desire := int(status.Replicas - gsSet.Spec.Replicas)
-		gap := desire - count
-		if gap > 0 {
-			// first sort by cost.
-			// if not set or an error value, the cost is default int64 max.
-			// so we go back to sort by Pod number on node.
-			if err = c.markCandidateGameServers(gsSet, list, gap); err != nil {
-				return err
-			}
-		}
-	}
-
-	// scale success or no action
-	if len(toDeleteList) == int(status.Replicas-gsSet.Spec.Replicas) {
-		gsSetCopy := gsSet.DeepCopy()
-		gsSetCopy.Status.Conditions = ChangeScalingStatus(gsSet)
-		if gsSet, err = c.patchGameServerIfChanged(gsSet, gsSetCopy); err != nil {
-			return err
-		}
-		gsSetCopy = gsSet.DeepCopy()
-		if _, ok := gsSet.Annotations[util.ScalingReplicasAnnotation]; ok {
-			delete(gsSet.Annotations, util.ScalingReplicasAnnotation)
-			if gsSet, err = c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(gsSet); err != nil {
-				return err
-			}
-		}
+	err = c.manageReplicas(key, list, gsSet)
+	if err != nil {
+		return err
 	}
 	klog.V(3).Infof("GameServerSet %v remove annotation success", gsSet.Name)
 	gsSet, err = c.syncGameServerSetStatus(gsSet, list)
@@ -317,12 +265,59 @@ func (c *Controller) syncGameServerSet(key string) error {
 		klog.Error(err)
 		return err
 	}
-	if status.Replicas-int32(len(toDeleteList))+int32(numServersToAdd) != gsSet.Spec.Replicas {
-		return fmt.Errorf("GameServerSet %v actual replicas: %v, desired: %v, to delete %v, to add: %v", key,
-			gsSet.Status.Replicas, gsSet.Spec.Replicas, len(toDeleteList),
-			numServersToAdd)
+	return nil
+}
+
+func (c *Controller) manageReplicas(key string, list []*carrierv1alpha1.GameServer, gsSet *carrierv1alpha1.GameServerSet) error {
+	scaling := IsGameServerSetScaling(gsSet)
+	klog.Infof("Current game server number of GameServerSet %v: %v", key, len(list))
+	gameServersToAdd, toDeleteList, isPartial := computeReconciliationAction(gsSet.Spec.Scheduling, list, c.counter,
+		int(gsSet.Spec.Replicas), maxGameServerCreationsPerBatch, maxGameServerDeletionsPerBatch, maxPodPendingCount, scaling)
+	status := computeStatus(list)
+	klog.V(5).Infof("Reconciling GameServerSet name: %v, spec: %v, status: %v", key, gsSet.Spec, status)
+	if isPartial {
+		defer c.workerqueue.EnqueueImmediately(gsSet)
 	}
-	return err
+	klog.V(2).Infof("GameSeverSet: %v toAdd: %v, toDelete: %v, list: %+v", key, gameServersToAdd, len(toDeleteList), toDeleteList)
+	if gameServersToAdd > 0 {
+		if err := c.createGameServers(gsSet, gameServersToAdd); err != nil {
+			klog.Errorf("error adding game servers: %v", err)
+		}
+	}
+	var toDeletes, candidates, runnings []*carrierv1alpha1.GameServer
+	if len(toDeleteList) > 0 {
+		toDeletes, candidates, runnings = filteredGameServers(toDeleteList)
+		// GameServers can be deleted directly.
+		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "ToDelete", "Created GameServer: %+v, can delete: %v", len(list), len(toDeleteList))
+		klog.Infof("toDeleteList toDeletes %v, candidates %v, runnings %v",
+			len(toDeletes), len(candidates), len(runnings))
+		if err := c.deleteGameServers(gsSet, toDeletes); err != nil {
+			klog.Errorf("error deleting game servers: %v", err)
+			return err
+		}
+		if len(runnings) > 0 {
+			if err := c.markCandidateGameServers(gsSet, runnings); err != nil {
+				return err
+			}
+		}
+	}
+
+	// scale down success or no action
+	if len(toDeletes) == int(status.Replicas-gsSet.Spec.Replicas) {
+		gsSetCopy := gsSet.DeepCopy()
+		gsSetCopy.Status.Conditions = ChangeScalingStatus(gsSet)
+		var err error
+		if gsSet, err = c.patchGameServerIfChanged(gsSet, gsSetCopy); err != nil {
+			return err
+		}
+		if _, ok := gsSet.Annotations[util.ScalingReplicasAnnotation]; ok {
+			delete(gsSet.Annotations, util.ScalingReplicasAnnotation)
+			if gsSet, err = c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(gsSet); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // computeReconciliationAction computes the action to take to reconcile a game server set set given
@@ -330,96 +325,78 @@ func (c *Controller) syncGameServerSet(key string) error {
 func computeReconciliationAction(strategy carrierv1alpha1.SchedulingStrategy, list []*carrierv1alpha1.GameServer,
 	counts *Counter, targetReplicaCount int, maxCreations int, maxDeletions int,
 	maxPending int, scaling bool) (int, []*carrierv1alpha1.GameServer, bool) {
-	var upCount int     // up == Ready or will become ready
-	var deleteCount int // number of gameservers to delete
+	var upCount, podPendingCount int
 
-	// track the number of pods that are being created at any given moment by the GameServerSet
-	// so we can limit it at a throughput that Kubernetes can handle
-	var podPendingCount int // podPending == "up" but don't have a Pod running yet
-
-	var potentialDeletions []*carrierv1alpha1.GameServer
-	var toDelete []*carrierv1alpha1.GameServer
-
-	scheduleDeletion := func(gs *carrierv1alpha1.GameServer) {
-		toDelete = append(toDelete, gs)
-		deleteCount--
-	}
-
-	handleGameServerUp := func(gs *carrierv1alpha1.GameServer) {
-		if upCount >= targetReplicaCount {
-			deleteCount++
-		} else {
-			upCount++
-		}
-
-		// Track gameservers that could be potentially deleted
-		potentialDeletions = append(potentialDeletions, gs)
-	}
-
+	var potentialDeletions, toDeleteGameServers []*carrierv1alpha1.GameServer
 	for _, gs := range list {
 		// GS being deleted don't count.
 		if gameservers.IsBeingDeleted(gs) {
 			continue
 		}
-
 		switch gs.Status.State {
 		case "", carrierv1alpha1.GameServerStarting:
 			podPendingCount++
-			handleGameServerUp(gs)
-		case carrierv1alpha1.GameServerExited, carrierv1alpha1.GameServerFailed:
-			scheduleDeletion(gs)
-		case carrierv1alpha1.GameServerUnknown:
+			upCount++
+		case carrierv1alpha1.GameServerRunning:
+			upCount++
 		default:
-			// unrecognized state, assume it's up.
-			handleGameServerUp(gs)
+			klog.Infof("Unknown state")
 		}
+		potentialDeletions = append(potentialDeletions, gs)
 	}
-
+	diff := targetReplicaCount - upCount
 	var partialReconciliation bool
-	var numServersToAdd int
-	klog.Infof("targetReplicaCount: %v, upcount: %v, deleteCount: %v", targetReplicaCount, upCount, deleteCount)
-	if upCount < targetReplicaCount {
-		numServersToAdd = targetReplicaCount - upCount
-		originalNumServersToAdd := numServersToAdd
-
-		if numServersToAdd > maxCreations {
-			numServersToAdd = maxCreations
+	var toAdd int
+	klog.Infof("targetReplicaCount: %v, upcount: %v", targetReplicaCount, upCount)
+	if diff > 0 {
+		toAdd = diff
+		originalToAdd := diff
+		if toAdd > maxCreations {
+			toAdd = maxCreations
 		}
-
-		if numServersToAdd+podPendingCount > maxPending {
-			numServersToAdd = maxPending - podPendingCount
-			if numServersToAdd < 0 {
-				numServersToAdd = 0
+		if toAdd+podPendingCount > maxPending {
+			toAdd = maxPending - podPendingCount
+			if toAdd < 0 {
+				toAdd = 0
 			}
 		}
-
-		if originalNumServersToAdd != numServersToAdd {
+		if originalToAdd != toAdd {
 			partialReconciliation = true
 		}
-	}
-
-	if deleteCount > 0 {
+	} else if diff < 0 {
+		// 1. delete not ready
+		// 2. delete deletable
+		// 3. try delete running
+		toDelete := -diff
 		if scaling {
-			potentialDeletions = filteredGameServers(potentialDeletions)
+			candidates := make([]*carrierv1alpha1.GameServer, len(potentialDeletions))
+			copy(candidates, potentialDeletions)
+			notReadys, deletables, deleteCandidates, runnings := classifyGameServers(candidates)
+			// sort running gs
+			runnings = sortGameServers(runnings, strategy, counts)
+			potentialDeletions = append(notReadys, deletables...)
+			potentialDeletions = append(potentialDeletions, deleteCandidates...)
+			potentialDeletions = append(potentialDeletions, runnings...)
+			klog.Infof("notReadys:%v, deletables:%v, deleteCandidates:%v, runnings:%v",
+				len(notReadys), len(deletables), len(deleteCandidates), len(runnings))
+		} else {
+			potentialDeletions = sortGameServers(potentialDeletions, strategy, counts)
 		}
-		potentialDeletions = sortGameServers(potentialDeletions, strategy, counts)
-		if len(potentialDeletions) < deleteCount {
-			deleteCount = len(potentialDeletions)
+
+		if len(potentialDeletions) < toDelete {
+			toDelete = len(potentialDeletions)
 		}
-
-		toDelete = append(toDelete, potentialDeletions[0:deleteCount]...)
+		if toDelete > maxDeletions {
+			toDelete = maxDeletions
+			partialReconciliation = true
+		}
+		toDeleteGameServers = append(toDeleteGameServers, potentialDeletions[0:toDelete]...)
 	}
-
-	if len(toDelete) > maxDeletions {
-		toDelete = toDelete[0:maxDeletions]
-		partialReconciliation = true
-	}
-
-	return numServersToAdd, toDelete, partialReconciliation
+	return toAdd, toDeleteGameServers, partialReconciliation
 }
 
-// addMoreGameServers adds diff more GameServers to the set
-func (c *Controller) addMoreGameServers(gsSet *carrierv1alpha1.GameServerSet, count int) error {
+// createGameServers adds diff more GameServers to the set
+func (c *Controller) createGameServers(gsSet *carrierv1alpha1.GameServerSet, count int) error {
 	klog.Infof("Adding more gameservers: %v, count: %v", gsSet.Name, count)
 	var errs []error
 	gs := GameServer(gsSet)
@@ -445,9 +422,9 @@ func (c *Controller) deleteGameServers(gsSet *carrierv1alpha1.GameServerSet, toD
 		gs := toDelete[piece]
 		gsCopy := gs.DeepCopy()
 		gsCopy.Status.State = carrierv1alpha1.GameServerExited
-
 		_, err := c.gameServerGetter.GameServers(gsCopy.Namespace).UpdateStatus(gsCopy)
 		if err != nil {
+
 			errs = append(errs, errors.Wrapf(err, "error updating gameserver %s from status %s to exited status", gs.Name, gs.Status.State))
 			return
 		}
@@ -463,6 +440,7 @@ func (c *Controller) deleteGameServers(gsSet *carrierv1alpha1.GameServerSet, toD
 func (c *Controller) markGameServersOutOfService(gsSet *carrierv1alpha1.GameServerSet, toMark []*carrierv1alpha1.GameServer) error {
 	klog.Infof("Makring gameservers not in servce: %v, to mark out of service %v", gsSet.Name, toMark)
 	var errs []error
+	klog.Infof("gss %v mark %v", gsSet.Name, len(toMark))
 	workqueue.ParallelizeUntil(context.Background(), maxDeletionParallelism, len(toMark), func(piece int) {
 		gs := toMark[piece]
 		gsCopy := gs.DeepCopy()
@@ -526,13 +504,8 @@ func (c *Controller) patchGameServerIfChanged(gsSet *carrierv1alpha1.GameServerS
 
 // markCandidateGameServers mark game server to be deleted
 func (c *Controller) markCandidateGameServers(gsSet *carrierv1alpha1.GameServerSet,
-	list []*carrierv1alpha1.GameServer, candidateNumber int) error {
-	potentialList := sortGameServers(list, gsSet.Spec.Scheduling, c.counter)
-	if len(potentialList) > candidateNumber {
-		potentialList = potentialList[0:candidateNumber]
-	}
-
-	if err := c.markGameServersOutOfService(gsSet, potentialList); err != nil {
+	candidates []*carrierv1alpha1.GameServer) error {
+	if err := c.markGameServersOutOfService(gsSet, candidates); err != nil {
 		klog.Errorf("error marking game servers out of service: %v", err)
 		return err
 	}
@@ -557,23 +530,39 @@ func computeStatus(list []*carrierv1alpha1.GameServer) carrierv1alpha1.GameServe
 	return status
 }
 
-// filteredGameServers filters the GameServers should not be deleted
-func filteredGameServers(toDelete []*carrierv1alpha1.GameServer) []*carrierv1alpha1.GameServer {
-	var filtered []*carrierv1alpha1.GameServer
+// classifyGameServers classify the GameServers to notReadys, deletables, deleteCandidates, runnings
+func classifyGameServers(toDelete []*carrierv1alpha1.GameServer) (notReadys,
+	deletables, deleteCandidates, runnings []*carrierv1alpha1.GameServer) {
 	for _, gs := range toDelete {
-		klog.V(4).Infof("Go through %v/%v, condition: %+v", gs.Namespace, gs.Name, gs.Status.Conditions)
-		if gameservers.IsBeforeReady(gs) {
-			klog.V(4).Infof("Add %v/%v", gs.Namespace, gs.Name)
-			filtered = append(filtered, gs)
+		switch {
+		case gameservers.IsBeforeReady(gs):
+			notReadys = append(notReadys, gs)
+		case gameservers.IsDeletable(gs):
+			deletables = append(deletables, gs)
+		case gameservers.IsOutOfService(gs):
+			deleteCandidates = append(deleteCandidates, gs)
+		default:
+			runnings = append(runnings, gs)
+		}
+	}
+	return
+}
+
+// filteredGameServers filters the GameServers can be deleted
+func filteredGameServers(list []*carrierv1alpha1.GameServer) (
+	toDelete, deleteCandidates, runnings []*carrierv1alpha1.GameServer) {
+	for _, gs := range list {
+		if gameservers.IsDeletable(gs) || gameservers.IsBeforeReady(gs) {
+			toDelete = append(toDelete, gs)
 			continue
 		}
-		if gameservers.IsDeletable(gs) {
-			klog.V(4).Infof("Add %v/%v", gs.Namespace, gs.Name)
-			filtered = append(filtered, gs)
+		if gameservers.IsOutOfService(gs) {
+			deleteCandidates = append(deleteCandidates, gs)
+			continue
 		}
-		continue
+		runnings = append(runnings, gs)
 	}
-	return filtered
+	return
 }
 
 func gameServerOutOfServiceCount(gsList []*carrierv1alpha1.GameServer) int {

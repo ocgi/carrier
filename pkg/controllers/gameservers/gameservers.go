@@ -168,6 +168,19 @@ func IsReady(gs *carrierv1alpha1.GameServer) bool {
 	return true
 }
 
+// IsOutOfService checks if a gameserver is marked out of service, and a delete candidate
+func IsOutOfService(gs *carrierv1alpha1.GameServer) bool {
+	for _, constraint := range gs.Spec.Constraints {
+		if constraint.Type != carrierv1alpha1.NotInService {
+			continue
+		}
+		if *constraint.Effective == true {
+			return true
+		}
+	}
+	return false
+}
+
 // ApplyToPodContainer applies func(v1.Container) to the specified container in the pod.
 // Returns an error if the container is not found.
 func ApplyToPodContainer(pod *corev1.Pod, containerName string, f func(corev1.Container) corev1.Container) error {
