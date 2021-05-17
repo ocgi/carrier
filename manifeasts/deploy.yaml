@@ -37,8 +37,8 @@ spec:
       containers:
         - args:
           - --election-resource-lock=endpoints
-          - --sidecar-image=ocgi/carrier-sdkserver:940ed1fc0d1608
+          - --sidecar-image=ocgi/carrier-sdkserver:latest
           - --v=5
-          image: ocgi/carrier-controller:a76d8ec0a50ec9
+          image: ocgi/carrier-controller:latest
           imagePullPolicy: IfNotPresent
           name: carrier-controller

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-REGISTRY_NAME=hub.docker.com/ocgi
+REGISTRY_NAME=docker.io/ocgi
 GIT_COMMIT=$(shell git rev-parse "HEAD^{commit}")
 VERSION=$(shell git describe --tags --abbrev=14 "${GIT_COMMIT}^{commit}" --always)
 BUILD_TIME=$(shell TZ=Asia/Shanghai date +%FT%T%z)
