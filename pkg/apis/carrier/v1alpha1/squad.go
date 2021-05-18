@@ -49,7 +49,7 @@ type SquadSpec struct {
 	// Replicas are the number of GameServers that should be in this set. Defaults to 0.
 	Replicas int32 `json:"replicas"`
 	// Squad strategy,one of ReCreate, RollingUpdate, CanaryUpdate.
-	Strategy SquadStrategy `json:"strategy"`
+	Strategy SquadStrategy `json:"strategy,omitempty"`
 	// Scheduling strategy. Defaults to "MostAllocated".
 	Scheduling SchedulingStrategy `json:"scheduling,omitempty"`
 	// Template the GameServer template to apply for this Squad
@@ -77,7 +77,7 @@ type RollbackConfig struct {
 // SquadStrategy is the strategy for a Squad
 type SquadStrategy struct {
 	// Type of Squad. Can be "Recreate" or "RollingUpdate" or "CanaryUpdate". Default is RollingUpdate.
-	Type SquadStrategyType `json:"type"`
+	Type SquadStrategyType `json:"type,omitempty"`
 	// Rolling update config params. Present only if SquadStrategyType = RollingUpdate.
 	RollingUpdate *RollingUpdateSquad `json:"rollingUpdate,omitempty"`
 	// Canary update config params. Present only if SquadStrategyType = CanaryUpdate.
