@@ -160,7 +160,7 @@ func (c *Controller) findOrCreateGameServerSet(squad *carrierv1alpha1.Squad, gsS
 		allOldGSSets  []*carrierv1alpha1.GameServerSet
 		newGSSet      *carrierv1alpha1.GameServerSet
 		err           error
-		isFirstCreate bool = false
+		isFirstCreate = false
 	)
 	if len(gsSetList) == 0 {
 		isFirstCreate = true
@@ -234,9 +234,10 @@ func (c *Controller) getNewGameServerSet(squad *carrierv1alpha1.Squad, gsSetList
 			Labels:          newGSSetTemplate.Labels,
 		},
 		Spec: carrierv1alpha1.GameServerSetSpec{
-			Scheduling: squad.Spec.Scheduling,
-			Selector:   newGSSSetelector,
-			Template:   newGSSetTemplate,
+			Scheduling:         squad.Spec.Scheduling,
+			Selector:           newGSSSetelector,
+			Template:           newGSSetTemplate,
+			ExcludeConstraints: squad.Spec.ExcludeConstraints,
 		},
 	}
 	// Setting gameserver set labels

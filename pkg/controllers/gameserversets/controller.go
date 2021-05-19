@@ -269,10 +269,9 @@ func (c *Controller) syncGameServerSet(key string) error {
 }
 
 func (c *Controller) manageReplicas(key string, list []*carrierv1alpha1.GameServer, gsSet *carrierv1alpha1.GameServerSet) error {
-	scaling := IsGameServerSetScaling(gsSet)
 	klog.Infof("Current game server number of GameServerSet %v: %v", key, len(list))
-	gameServersToAdd, toDeleteList, isPartial := computeReconciliationAction(gsSet.Spec.Scheduling, list, c.counter,
-		int(gsSet.Spec.Replicas), maxGameServerCreationsPerBatch, maxGameServerDeletionsPerBatch, maxPodPendingCount, scaling)
+	gameServersToAdd, toDeleteList, isPartial := c.computeReconciliationAction(gsSet, list, c.counter,
+		maxGameServerCreationsPerBatch, maxGameServerDeletionsPerBatch, maxPodPendingCount)
 	status := computeStatus(list)
 	klog.V(5).Infof("Reconciling GameServerSet name: %v, spec: %v, status: %v", key, gsSet.Spec, status)
 	if isPartial {
@@ -379,9 +378,10 @@ func (c *Controller) getOldAndNewReplicas(gsSet *carrierv1alpha1.GameServerSet) 
 
 // computeReconciliationAction computes the action to take to reconcile a game server set set given
 // the list of game servers that were found and target replica count.
-func computeReconciliationAction(strategy carrierv1alpha1.SchedulingStrategy, list []*carrierv1alpha1.GameServer,
-	counts *Counter, targetReplicaCount int, maxCreations int, maxDeletions int,
-	maxPending int, scaling bool) (int, []*carrierv1alpha1.GameServer, bool) {
+func (c *Controller) computeReconciliationAction(gsSet *carrierv1alpha1.GameServerSet, list []*carrierv1alpha1.GameServer,
+	counts *Counter, maxCreations int, maxDeletions int, maxPending int) (int, []*carrierv1alpha1.GameServer, bool) {
+	scaling := IsGameServerSetScaling(gsSet)
+	excludeConstraintGS := excludeConstraints(gsSet)
 	var upCount, podPendingCount int
 
 	var potentialDeletions, toDeleteGameServers []*carrierv1alpha1.GameServer
@@ -395,16 +395,19 @@ func computeReconciliationAction(strategy carrierv1alpha1.SchedulingStrategy, li
 			podPendingCount++
 			upCount++
 		case carrierv1alpha1.GameServerRunning:
+			if gameservers.IsOutOfService(gs) && excludeConstraintGS {
+				continue
+			}
 			upCount++
 		default:
 			klog.Infof("Unknown state")
 		}
 		potentialDeletions = append(potentialDeletions, gs)
 	}
-	diff := targetReplicaCount - upCount
+	diff := int(gsSet.Spec.Replicas) - upCount
 	var partialReconciliation bool
 	var toAdd int
-	klog.Infof("targetReplicaCount: %v, upcount: %v", targetReplicaCount, upCount)
+	klog.Infof("targetReplicaCount: %v, upcount: %v", int(gsSet.Spec.Replicas), upCount)
 	if diff > 0 {
 		toAdd = diff
 		originalToAdd := diff
@@ -430,14 +433,14 @@ func computeReconciliationAction(strategy carrierv1alpha1.SchedulingStrategy, li
 			copy(candidates, potentialDeletions)
 			notReadys, deletables, deleteCandidates, runnings := classifyGameServers(candidates)
 			// sort running gs
-			runnings = sortGameServers(runnings, strategy, counts)
+			runnings = sortGameServers(runnings, gsSet.Spec.Scheduling, counts)
 			potentialDeletions = append(notReadys, deletables...)
 			potentialDeletions = append(potentialDeletions, deleteCandidates...)
 			potentialDeletions = append(potentialDeletions, runnings...)
 			klog.Infof("notReadys:%v, deletables:%v, deleteCandidates:%v, runnings:%v",
 				len(notReadys), len(deletables), len(deleteCandidates), len(runnings))
 		} else {
-			potentialDeletions = sortGameServers(potentialDeletions, strategy, counts)
+			potentialDeletions = sortGameServers(potentialDeletions, gsSet.Spec.Scheduling, counts)
 		}
 
 		if len(potentialDeletions) < toDelete {
@@ -632,6 +635,14 @@ func computeStatus(list []*carrierv1alpha1.GameServer) carrierv1alpha1.GameServe
 	return status
 }
 
+// excludeConstraints return if exclude GameServers with constraint for the GameServerSet
+func excludeConstraints(gsSet *carrierv1alpha1.GameServerSet) bool {
+	if gsSet.Spec.ExcludeConstraints == nil {
+		return false
+	}
+	return *gsSet.Spec.ExcludeConstraints
+}
+
 // classifyGameServers classify the GameServers to notReadys, deletables, deleteCandidates, runnings
 func classifyGameServers(toDelete []*carrierv1alpha1.GameServer) (notReadys,
 	deletables, deleteCandidates, runnings []*carrierv1alpha1.GameServer) {
@@ -670,12 +681,8 @@ func filteredGameServers(list []*carrierv1alpha1.GameServer) (
 func gameServerOutOfServiceCount(gsList []*carrierv1alpha1.GameServer) int {
 	count := 0
 	for _, gs := range gsList {
-		for _, constraint := range gs.Spec.Constraints {
-			if constraint.Type == carrierv1alpha1.NotInService &&
-				constraint.Effective != nil && *constraint.Effective == true {
-				count++
-				break
-			}
+		if gameservers.IsOutOfService(gs) {
+			count++
 		}
 	}
 	return count

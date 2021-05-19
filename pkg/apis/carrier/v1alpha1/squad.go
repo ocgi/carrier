@@ -67,6 +67,9 @@ type SquadSpec struct {
 	// It must match the pod template's labels.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+	// ExcludeConstraints describes if we should exclude GameServer with constraints
+	// when computing replicas, default false.
+	ExcludeConstraints *bool `json:"excludeConstraints,omitempty"`
 }
 
 type RollbackConfig struct {

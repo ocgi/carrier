@@ -309,6 +309,11 @@ func (in *GameServerSetSpec) DeepCopyInto(out *GameServerSetSpec) {
 		*out = new(v1.LabelSelector)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.ExcludeConstraints != nil {
+		in, out := &in.ExcludeConstraints, &out.ExcludeConstraints
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 
@@ -725,6 +730,11 @@ func (in *SquadSpec) DeepCopyInto(out *SquadSpec) {
 		in, out := &in.Selector, &out.Selector
 		*out = new(v1.LabelSelector)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.ExcludeConstraints != nil {
+		in, out := &in.ExcludeConstraints, &out.ExcludeConstraints
+		*out = new(bool)
+		**out = **in
 	}
 	return
 }
