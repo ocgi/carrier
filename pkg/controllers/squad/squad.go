@@ -94,7 +94,7 @@ func calculateStatus(allGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carri
 	status := carrierv1alpha1.SquadStatus{
 		ObservedGeneration: squad.Generation,
 		Replicas:           GetActualReplicaCountForGameServerSets(allGSSets),
-		UpdatedReplicas:    GetActualReplicaCountForGameServerSets([]*carrierv1alpha1.GameServerSet{newGSSet}),
+		UpdatedReplicas:    GetUpdateReplicaCountForGameServerSets([]*carrierv1alpha1.GameServerSet{newGSSet}),
 		ReadyReplicas:      GetReadyReplicaCountForGameServerSets(allGSSets),
 	}
 	conditions := squad.Status.Conditions
@@ -244,15 +244,12 @@ func (c *Controller) getNewGameServerSet(squad *carrierv1alpha1.Squad, gsSetList
 		newGSSet.ObjectMeta.Labels = make(map[string]string)
 	}
 	newGSSet.ObjectMeta.Labels[util.SquadNameLabel] = squad.Name
-	SetGameServerSetInplaceUpdateLabels(&newGSSet)
+	SetGameServerTemplateHashLabels(&newGSSet)
 
 	allGSSets := append(oldGSSets, &newGSSet)
 	newReplicasCount, err := NewGSSetNewReplicas(squad, allGSSets, &newGSSet)
 	if err != nil {
 		return nil, err
-	}
-	if IsInplaceUpdate(squad) {
-		newReplicasCount = squad.Spec.Replicas
 	}
 
 	newGSSet.Spec.Replicas = newReplicasCount

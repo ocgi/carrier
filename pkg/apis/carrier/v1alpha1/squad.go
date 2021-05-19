@@ -82,6 +82,8 @@ type SquadStrategy struct {
 	RollingUpdate *RollingUpdateSquad `json:"rollingUpdate,omitempty"`
 	// Canary update config params. Present only if SquadStrategyType = CanaryUpdate.
 	CanaryUpdate *CanaryUpdateSquad `json:"canaryUpdate,omitempty"`
+	// Inplace update config params. Present only if SquadStrategyType = InplaceUpdate.
+	InplaceUpdate *InplaceUpdateSquad `json:"inplaceUpdate,omitempty"`
 }
 
 // RollingUpdateSquad controls the desired behavior of rolling update.
@@ -120,6 +122,14 @@ type CanaryUpdateSquad struct {
 	Threshold *intstr.IntOrString `json:"threshold"`
 }
 
+// InplaceUpdateSquad to control the desired behavior of inplace update.
+type InplaceUpdateSquad struct {
+	// The number of GameServers than can be updated
+	// Value can be an absolute number(ex: 5) or a percentage of total GameServers at
+	// the start of the update (ex: 10%)
+	Threshold *intstr.IntOrString `json:"threshold"`
+}
+
 type GameServerStrategyType string
 
 const (
@@ -127,8 +137,6 @@ const (
 	DeleteFirstGameServerStrategyType GameServerStrategyType = "deleteFirst"
 	// CreateFirstGameServerStrategyType create new gameserver before kill the old ones
 	CreateFirstGameServerStrategyType GameServerStrategyType = "createFirst"
-	// InplaceGameServerStrategyType update gameservers in-place
-	InplaceGameServerStrategyType GameServerStrategyType = "inplace"
 )
 
 type SquadStrategyType string
@@ -136,10 +144,13 @@ type SquadStrategyType string
 const (
 	// RecreateSquadStrategyType Kill all existing GameServers before creating new ones.
 	RecreateSquadStrategyType SquadStrategyType = "Recreate"
-	// RollingUpdateSquadStrategyType Replace the old GameServerSets by new one using rolling update i.e gradually scale down the old GameServerSets and scale up the new one.
+	// RollingUpdateSquadStrategyType Replace the old GameServerSets by new one using rolling update
+	// i.e gradually scale down the old GameServerSets and scale up the new one.
 	RollingUpdateSquadStrategyType SquadStrategyType = "RollingUpdate"
 	// CanaryUpdateSquadStrategyType Replace the old GameServerSets by new one using canary update, you can specify the updated threshold
 	CanaryUpdateSquadStrategyType SquadStrategyType = "CanaryUpdate"
+	// InplaceUpdateSquadStrategyType Replace the old GameServerSets by new one using inplace update, you can specify the updated threshold
+	InplaceUpdateSquadStrategyType SquadStrategyType = "InplaceUpdate"
 )
 
 // SquadStatus is the status of a Squad

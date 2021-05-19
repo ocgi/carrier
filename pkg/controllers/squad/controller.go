@@ -192,6 +192,8 @@ func (c *Controller) syncSquad(key string) error {
 		return c.rolloutRolling(squad, gsSetList)
 	case carrierv1alpha1.CanaryUpdateSquadStrategyType:
 		return c.rolloutCanary(squad, gsSetList)
+	case carrierv1alpha1.InplaceUpdateSquadStrategyType:
+		return c.rolloutInplace(squad, gsSetList)
 	}
 	return errors.Errorf("unexpected squad strategy type: %s", squad.Spec.Strategy.Type)
 }

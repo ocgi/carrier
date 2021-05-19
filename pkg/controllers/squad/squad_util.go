@@ -102,7 +102,18 @@ func GetActualReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameSer
 	totalActualReplicas := int32(0)
 	for _, gsSet := range gsSetList {
 		if gsSet != nil {
-			if _, ok := gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation]; ok {
+			totalActualReplicas += gsSet.Status.Replicas
+		}
+	}
+	return totalActualReplicas
+}
+
+// GetUpdateReplicaCountForGameServerSets returns the sum of update replicas of the given gameserver set.
+func GetUpdateReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameServerSet) int32 {
+	totalActualReplicas := int32(0)
+	for _, gsSet := range gsSetList {
+		if gsSet != nil {
+			if _, ok := gsSet.Annotations[util.GameServerInPlaceUpdateAnnotation]; ok {
 				totalActualReplicas += GetGameServerSetInplaceUpdateStatus(gsSet)
 			} else {
 				totalActualReplicas += gsSet.Status.Replicas
@@ -298,10 +309,9 @@ func IsCanaryUpdate(squad *carrierv1alpha1.Squad) bool {
 	return squad.Spec.Strategy.Type == carrierv1alpha1.CanaryUpdateSquadStrategyType
 }
 
-// IsInplaceUpdate returns true if the strategy type is a in-place update
+// IsInplaceUpdate returns true if the strategy type is a inplace update
 func IsInplaceUpdate(squad *carrierv1alpha1.Squad) bool {
-	return squad.Spec.Strategy.Type == carrierv1alpha1.CanaryUpdateSquadStrategyType &&
-		squad.Spec.Strategy.CanaryUpdate.Type == carrierv1alpha1.InplaceGameServerStrategyType
+	return squad.Spec.Strategy.Type == carrierv1alpha1.InplaceUpdateSquadStrategyType
 }
 
 // MaxSurge returns the maximum surge GameServers a rolling squad can take.
@@ -331,14 +341,25 @@ func CanaryThreshold(squad carrierv1alpha1.Squad) int32 {
 	if !IsCanaryUpdate(&squad) || squad.Spec.Replicas == 0 {
 		return int32(0)
 	}
-	threshold, err := intstrutil.GetValueFromIntOrPercent(intstrutil.ValueOrDefault(squad.Spec.Strategy.CanaryUpdate.Threshold, intstrutil.FromInt(0)), int(squad.Spec.Replicas), true)
+	return getThreshold(squad.Spec.Replicas, squad.Spec.Strategy.CanaryUpdate.Threshold)
+}
+
+func InplaceThreshold(squad carrierv1alpha1.Squad) int32 {
+	if !IsInplaceUpdate(&squad) || squad.Spec.Replicas == 0 {
+		return int32(0)
+	}
+	return getThreshold(squad.Spec.Replicas, squad.Spec.Strategy.InplaceUpdate.Threshold)
+}
+
+func getThreshold(replicas int32, threshold *intstrutil.IntOrString) int32 {
+	newThreshold, err := intstrutil.GetValueFromIntOrPercent(intstrutil.ValueOrDefault(threshold, intstrutil.FromInt(0)), int(replicas), true)
 	if err != nil {
 		return int32(0)
 	}
-	if int32(threshold) > squad.Spec.Replicas {
-		return squad.Spec.Replicas
+	if int32(newThreshold) > replicas {
+		return replicas
 	}
-	return int32(threshold)
+	return int32(newThreshold)
 }
 
 // ResolveFenceposts resolves both maxSurge and maxUnavailable. This needs to happen in one
@@ -618,6 +639,8 @@ func NewGSSetNewReplicas(squad *carrierv1alpha1.Squad, allGSSets []*carrierv1alp
 		return squad.Spec.Replicas, nil
 	case carrierv1alpha1.CanaryUpdateSquadStrategyType:
 		return CanaryThreshold(*squad), nil
+	case carrierv1alpha1.InplaceUpdateSquadStrategyType:
+		return squad.Spec.Replicas, nil
 	default:
 		return 0, fmt.Errorf("squad type %v isn't supported", squad.Spec.Strategy.Type)
 	}
@@ -678,8 +701,8 @@ func ComputeHash(template *carrierv1alpha1.GameServerTemplateSpec) string {
 	return rand.SafeEncodeString(fmt.Sprint(gsTemplateSpecHasher.Sum32()))
 }
 
-// SetGameServerSetInplaceUpdateLabels setting pod spec hash to gameserver set labels
-func SetGameServerSetInplaceUpdateLabels(gsSet *carrierv1alpha1.GameServerSet) {
+// SetGameServerTemplateHashLabels setting pod spec hash to gameserver set labels
+func SetGameServerTemplateHashLabels(gsSet *carrierv1alpha1.GameServerSet) {
 	podSpecHash := ComputePodSpecHash(&gsSet.Spec.Template.Spec.Template.Spec)
 	if gsSet.Labels == nil {
 		gsSet.Labels = make(map[string]string)
@@ -691,12 +714,12 @@ func SetGameServerSetInplaceUpdateLabels(gsSet *carrierv1alpha1.GameServerSet) {
 	gsSet.Spec.Template.Labels[util.GameServerHash] = podSpecHash
 }
 
-// SetGameServerSetInplaceUpdateAnnotations setting gameserver set annotations when in-place update
+// SetGameServerSetInplaceUpdateAnnotations setting gameserver set annotations when inplace update
 func SetGameServerSetInplaceUpdateAnnotations(gsSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) {
 	if gsSet.Annotations == nil {
 		gsSet.Annotations = make(map[string]string)
 	}
-	gsSet.Annotations[util.GameServerInPlaceUpdateAnnotation] = strconv.Itoa(int(CanaryThreshold(*squad)))
+	gsSet.Annotations[util.GameServerInPlaceUpdateAnnotation] = strconv.Itoa(int(InplaceThreshold(*squad)))
 }
 
 // GetGameServerSetInplaceUpdateStatus get the current number of updated replicas
