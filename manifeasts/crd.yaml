@@ -419,6 +419,7 @@ spec:
                     - Recreate
                     - RollingUpdate
                     - CanaryUpdate
+                    - InplaceUpdate
             template:
               required:
                 - spec
