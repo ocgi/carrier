@@ -177,7 +177,7 @@ func IsReady(gs *carrierv1alpha1.GameServer) bool {
 	return true
 }
 
-// IsOutOfService checks if a gameserver is marked out of service, and a delete candidate
+// IsOutOfService checks if a GameServer is marked out of service, and a delete candidate
 func IsOutOfService(gs *carrierv1alpha1.GameServer) bool {
 	for _, constraint := range gs.Spec.Constraints {
 		if constraint.Type != carrierv1alpha1.NotInService {
@@ -190,7 +190,7 @@ func IsOutOfService(gs *carrierv1alpha1.GameServer) bool {
 	return false
 }
 
-// IsInPlaceUpdating checks if a gameserver is inplace updating
+// IsInPlaceUpdating checks if a GameServer is inplace updating
 func IsInPlaceUpdating(gs *carrierv1alpha1.GameServer) bool {
 	if len(gs.Annotations) == 0 {
 		return false
@@ -198,7 +198,7 @@ func IsInPlaceUpdating(gs *carrierv1alpha1.GameServer) bool {
 	return gs.Annotations[util.GameServerInPlaceUpdatingAnnotation] == "true"
 }
 
-// CanInPlaceUpdating checks if a gameserver can inplace updating
+// CanInPlaceUpdating checks if a GameServer can inplace updating
 func CanInPlaceUpdating(gs *carrierv1alpha1.GameServer) bool {
 	if IsBeingDeleted(gs) {
 		return false
@@ -276,7 +276,7 @@ func buildPod(gs *carrierv1alpha1.GameServer, sa string, sidecars ...corev1.Cont
 	injectPodScheduling(gs, pod)
 	// if the service account is not set, then you are in the "opinionated"
 	// mode. If the user sets the service account, we assume they know what they are
-	// doing, and don't disable the gameserver container.
+	// doing, and don't disable the GameServer container.
 	if pod.Spec.ServiceAccountName == "" {
 		pod.Spec.ServiceAccountName = sa
 		err := DisableServiceAccount(pod)
@@ -330,9 +330,9 @@ func injectPodScheduling(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 	}
 }
 
-// DisableServiceAccount disables the service account for the gameserver container
+// DisableServiceAccount disables the service account for the GameServer container
 func DisableServiceAccount(pod *corev1.Pod) error {
-	// gameservers don't get access to the k8s api.
+	// GameServers don't get access to the k8s api.
 	emptyVol := corev1.Volume{Name: "empty", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}}
 	pod.Spec.Volumes = append(pod.Spec.Volumes, emptyVol)
 	mount := corev1.VolumeMount{MountPath: "/var/run/secrets/kubernetes.io/serviceaccount", Name: emptyVol.Name, ReadOnly: true}

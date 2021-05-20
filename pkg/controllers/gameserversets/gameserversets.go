@@ -26,7 +26,7 @@ import (
 	"github.com/ocgi/carrier/pkg/util"
 )
 
-// sortGameServersByPodNum sorts the list of gameservers by which gameservers reside on the least full nodes
+// sortGameServersByPodNum sorts the list of GameServers by which GameServers reside on the least full nodes
 func sortGameServersByPodNum(list []*carrierv1alpha1.GameServer, counter *Counter) []*carrierv1alpha1.GameServer {
 	sort.Slice(list, func(i, j int) bool {
 		a := list[i]
@@ -47,7 +47,7 @@ func sortGameServersByPodNum(list []*carrierv1alpha1.GameServer, counter *Counte
 	return list
 }
 
-// sortGameServersByCost sorts the list of gameservers by which gameservers reside on the game server cost.
+// sortGameServersByCost sorts the list of GameServers by which GameServers reside on the game server cost.
 func sortGameServersByCost(list []*carrierv1alpha1.GameServer) []*carrierv1alpha1.GameServer {
 	sort.Slice(list, func(i, j int) bool {
 		costI, err := GetDeletionCostFromGameServerAnnotations(list[i].Annotations)
@@ -64,7 +64,7 @@ func sortGameServersByCost(list []*carrierv1alpha1.GameServer) []*carrierv1alpha
 	return list
 }
 
-// sortGameServersByCreationTime sorts by newest gameservers first, and returns them
+// sortGameServersByCreationTime sorts by newest GameServers first, and returns them
 func sortGameServersByCreationTime(list []*carrierv1alpha1.GameServer) []*carrierv1alpha1.GameServer {
 	sort.Slice(list, func(i, j int) bool {
 		a := list[i]
@@ -85,7 +85,7 @@ func ListGameServersByGameServerSetOwner(gameServerLister listerv1.GameServerLis
 	}
 	list, err := gameServerLister.List(labels.SelectorFromSet(labelSelector))
 	if err != nil {
-		return list, errors.Wrapf(err, "error listing gameservers for gameserverset %s", gsSet.ObjectMeta.Name)
+		return list, errors.Wrapf(err, "error listing GameServers for GameServerSet %s", gsSet.ObjectMeta.Name)
 	}
 	var result []*carrierv1alpha1.GameServer
 	for _, gs := range list {

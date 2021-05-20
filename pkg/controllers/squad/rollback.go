@@ -45,12 +45,12 @@ func (c *Controller) rollback(squad *carrierv1alpha1.Squad, gsSetList []*carrier
 	for _, gsSet := range allGSSets {
 		v, err := Revision(gsSet)
 		if err != nil {
-			klog.V(4).Infof("Unable to extract revision from squad's gameserver set %q: %v", gsSet.Name, err)
+			klog.V(4).Infof("Unable to extract revision from squad's GameServerSet %q: %v", gsSet.Name, err)
 			continue
 		}
 		if v == rollbackTo.Revision {
-			klog.V(4).Infof("Found gameserver set %q with desired revision %d", gsSet.Name, v)
-			// rollback by copying gameServerTemplate.Spec from the gameserver set
+			klog.V(4).Infof("Found GameServerSet %q with desired revision %d", gsSet.Name, v)
+			// rollback by copying gameServerTemplate.Spec from the GameServerSet
 			// revision number will be incremented during the next getAllGameServerSetsAndSyncRevision call
 			// no-op if the spec matches current squad's gameServerTemplate.Spec
 			performedRollback, err := c.rollbackToTemplate(squad, gsSet)
@@ -65,8 +65,8 @@ func (c *Controller) rollback(squad *carrierv1alpha1.Squad, gsSetList []*carrier
 	return c.updateSquadAndClearRollbackTo(squad)
 }
 
-// rollbackToTemplate compares the templates of the provided Squad and gameserver set and
-// updates the Squad with the gameserver set template in case they are different. It also
+// rollbackToTemplate compares the templates of the provided Squad and GameServerSet and
+// updates the Squad with the GameServerSet template in case they are different. It also
 // cleans up the rollback spec so subsequent requeues of the Squad won't end up in here.
 func (c *Controller) rollbackToTemplate(squad *carrierv1alpha1.Squad, gsSet *carrierv1alpha1.GameServerSet) (bool, error) {
 	performedRollback := false

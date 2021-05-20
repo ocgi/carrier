@@ -39,10 +39,10 @@ func (c *Controller) rolloutCanary(squad *carrierv1alpha1.Squad, gsSetList []*ca
 	case carrierv1alpha1.DeleteFirstGameServerStrategyType:
 		return c.deleteFirst(squad, gsSetList)
 	}
-	return errors.Errorf("No gameserver strategy type found for squad: %v", squad.ObjectMeta)
+	return errors.Errorf("No GameServer strategy type found for squad: %v", squad.ObjectMeta)
 }
 
-// createFirst scale up the new gameserver set first
+// createFirst scale up the new GameServerSet first
 func (c *Controller) createFirst(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet) error {
 	newGSSet, oldGSSets, err := c.getAllGameServerSetsAndSyncRevision(squad, gsSetList, true)
 	if err != nil {
@@ -79,16 +79,16 @@ func (c *Controller) createFirst(squad *carrierv1alpha1.Squad, gsSetList []*carr
 	return c.syncRolloutStatus(allGSSets, newGSSet, squad)
 }
 
-// deleteFirst scale down the old gameserver set first
+// deleteFirst scale down the old GameServerSet first
 func (c *Controller) deleteFirst(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet) error {
-	// Don't create a new gameserver set if not already existed, so that we avoid scaling up before scaling down.
+	// Don't create a new GameServerSet if not already existed, so that we avoid scaling up before scaling down.
 	newGSSet, oldGSSets, err := c.getAllGameServerSetsAndSyncRevision(squad, gsSetList, false)
 	if err != nil {
 		return err
 	}
 	allGSSets := append(oldGSSets, newGSSet)
 	activeOldGSSets := FilterActiveGameServerSets(oldGSSets)
-	// scale down old gameserver sets.
+	// scale down old GameServerSets.
 	scaledDown, err := c.scaleDownOldGameServerSetsForCanary(allGSSets, activeOldGSSets, newGSSet, squad)
 	if err != nil {
 		return err
@@ -98,7 +98,7 @@ func (c *Controller) deleteFirst(squad *carrierv1alpha1.Squad, gsSetList []*carr
 		return c.syncRolloutStatus(allGSSets, newGSSet, squad)
 	}
 
-	// If we need to create a new gameserver set, create it now.
+	// If we need to create a new GameServerSet, create it now.
 	if newGSSet == nil {
 		newGSSet, oldGSSets, err = c.getAllGameServerSetsAndSyncRevision(squad, gsSetList, true)
 		if err != nil {
@@ -106,7 +106,7 @@ func (c *Controller) deleteFirst(squad *carrierv1alpha1.Squad, gsSetList []*carr
 		}
 		allGSSets = append(oldGSSets, newGSSet)
 	}
-	// scale up new gameserver set.
+	// scale up new GameServerSet.
 	if _, err := c.scaleUpNewGameServerSetForCanary(allGSSets, newGSSet, squad); err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (c *Controller) deleteFirst(squad *carrierv1alpha1.Squad, gsSetList []*carr
 
 }
 
-// scaleUpNewGameServerSetForCanary scales up new gameserver set when squad strategy is "CanaryUpdate".
+// scaleUpNewGameServerSetForCanary scales up new GameServerSet when squad strategy is "CanaryUpdate".
 func (c *Controller) scaleUpNewGameServerSetForCanary(allGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) (bool, error) {
 	threshold := CanaryThreshold(*squad)
 	if threshold == 0 {
@@ -148,7 +148,7 @@ func (c *Controller) scaleUpNewGameServerSetForCanary(allGSSets []*carrierv1alph
 	return scaled, err
 }
 
-// scaleDownOldGameServerSetsForCanary scales down old gameserver sets when squad strategy is "CanaryUpdate".
+// scaleDownOldGameServerSetsForCanary scales down old GameServerSets when squad strategy is "CanaryUpdate".
 func (c *Controller) scaleDownOldGameServerSetsForCanary(allGSSets []*carrierv1alpha1.GameServerSet, oldGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) (bool, error) {
 	oldGameServersCount := GetReplicaCountForGameServerSets(oldGSSets)
 	if oldGameServersCount == 0 {
@@ -158,12 +158,12 @@ func (c *Controller) scaleDownOldGameServerSetsForCanary(allGSSets []*carrierv1a
 	threshold := CanaryThreshold(*squad)
 	if newGSSet != nil && newGSSet.Status.ReadyReplicas < threshold {
 		// wait for new replicas are ready
-		klog.V(4).Infof("Found %d ready gameservers in new gameserver set %s/%s", newGSSet.Status.ReadyReplicas, newGSSet.Namespace, newGSSet.Name)
+		klog.V(4).Infof("Found %d ready GameServers in new GameServerSet %s/%s", newGSSet.Status.ReadyReplicas, newGSSet.Namespace, newGSSet.Name)
 		return false, nil
 	}
 
 	allOldGameServersCount := GetReplicaCountForGameServerSets(oldGSSets)
-	klog.V(4).Infof("%d old gameserver for squad: %v", allOldGameServersCount, squad.ObjectMeta)
+	klog.V(4).Infof("%d old GameServer for squad: %v", allOldGameServersCount, squad.ObjectMeta)
 	maxScaledDown := allOldGameServersCount + threshold - squad.Spec.Replicas
 	if maxScaledDown <= 0 {
 		//  stop scale down
@@ -190,7 +190,7 @@ func (c *Controller) scaleDownOldGameServerSetsForCanary(allGSSets []*carrierv1a
 			break
 		}
 		if targetGSSet.Spec.Replicas == 0 {
-			// cannot scale down this gameserver set.
+			// cannot scale down this GameServerSet.
 			continue
 		}
 		// Scale down.

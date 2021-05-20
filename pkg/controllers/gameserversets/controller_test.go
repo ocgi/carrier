@@ -109,7 +109,7 @@ func TestControllerSyncGameServerSet(t *testing.T) {
 				filtered = append(filtered, &gs)
 			}
 			if len(filtered) != int(testCase.desireReplicas) {
-				t.Errorf("current gamesvrs: %v, desired: %v", len(filtered), testCase.desireReplicas)
+				t.Errorf("Current GameServers: %v, desired: %v", len(filtered), testCase.desireReplicas)
 			}
 		})
 	}

@@ -328,7 +328,7 @@ func TestGetGameServerMapForSquad(t *testing.T) {
 	if got, want := gsCount, 3; got != want {
 		t.Errorf("gsCount = %v, want %v", got, want)
 	}
-	// two gameserver set
+	// two GameServerSet
 	if got, want := len(gsMap), 2; got != want {
 		t.Errorf("len(gsMap) = %v, want %v", got, want)
 	}
@@ -349,7 +349,7 @@ func TestGetGameServerMapForSquad(t *testing.T) {
 	}
 }
 
-// generateGameServerFromGSSet creates a gameserver, with the input GameServer Set's selector and its template
+// generateGameServerFromGSSet creates a GameServer, with the input GameServer Set's selector and its template
 func generateGameServerFromGSSet(gsSet *carrierv1alpha1.GameServerSet) *carrierv1alpha1.GameServer {
 	trueVar := true
 	return &carrierv1alpha1.GameServer{

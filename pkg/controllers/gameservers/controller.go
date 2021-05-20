@@ -72,7 +72,7 @@ type Controller struct {
 	sidecar            Sidecar
 }
 
-// NewController returns a new gameserver crd controller
+// NewController returns a new GameServer crd controller
 func NewController(
 	kubeClient kubernetes.Interface,
 	kubeInformerFactory informers.SharedInformerFactory,
@@ -677,7 +677,7 @@ func getReadyContainer(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) (bool, e
 		container, ok := gs.Annotations[util.GameServerContainerAnnotation]
 		if !ok {
 			if cs.State.Running == nil {
-				return false, errors.New("game server container is not currently running, try again")
+				return false, errors.New("GameServer container is not currently running, try again")
 			}
 			if gs.Annotations == nil {
 				gs.Annotations = map[string]string{}

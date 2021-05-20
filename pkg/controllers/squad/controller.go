@@ -223,7 +223,7 @@ func (c *Controller) getGameServerMapForSquad(squad *carrierv1alpha1.Squad, gsSe
 	return gsMap, nil
 }
 
-// gameServerSetEventHandler enqueues the owning Squad for this gameserver set,
+// gameServerSetEventHandler enqueues the owning Squad for this GameServerSet,
 // assuming that it has one
 func (c *Controller) gameServerSetEventHandler(obj interface{}) {
 	gsSet := obj.(*carrierv1alpha1.GameServerSet)
@@ -236,7 +236,7 @@ func (c *Controller) gameServerSetEventHandler(obj interface{}) {
 		if k8serrors.IsNotFound(err) {
 			klog.Warning("Owner Squad no longer available for syncing")
 		} else {
-			runtime.HandleError(errors.Wrapf(err, "error retrieving gameserver set owner, ref: %v", ref))
+			runtime.HandleError(errors.Wrapf(err, "error retrieving GameServerSet owner, ref: %v", ref))
 		}
 		return
 	}

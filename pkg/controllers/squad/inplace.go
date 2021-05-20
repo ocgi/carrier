@@ -24,7 +24,7 @@ import (
 	"github.com/ocgi/carrier/pkg/util/kube"
 )
 
-// inplace update gameserver inplace
+// inplace update GameServer inplace
 func (c *Controller) rolloutInplace(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet) error {
 	newGSSet, isFirstCreate, err := c.findOrCreateGameServerSet(squad, gsSetList)
 	if err != nil {
@@ -47,7 +47,7 @@ func (c *Controller) rolloutInplace(squad *carrierv1alpha1.Squad, gsSetList []*c
 		}
 		return c.syncRolloutStatus(allGSSet, newGSSet, squad)
 	}
-	// update gameserver set
+	// update GameServerSet
 	SetGameServerSetInplaceUpdateAnnotations(newGSSet, squad)
 	SetGameServerTemplateHashLabels(newGSSet)
 	newGSSet.Spec.Template.Spec.Template.Spec = *squad.Spec.Template.Spec.Template.Spec.DeepCopy()
@@ -71,7 +71,7 @@ func (c *Controller) rolloutInplace(squad *carrierv1alpha1.Squad, gsSetList []*c
 }
 
 func (c *Controller) cleanupGameServerSet(gsSet *carrierv1alpha1.GameServerSet) error {
-	klog.V(4).Infof("Cleans up inplace update annotations of gameserver set %q", gsSet.Name)
+	klog.V(4).Infof("Cleans up inplace update annotations of GameServerSet %q", gsSet.Name)
 	delete(gsSet.Annotations, util.GameServerInPlaceUpdateAnnotation)
 	delete(gsSet.Annotations, util.GameServerInPlaceUpdatedReplicasAnnotation)
 	_, err := c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(gsSet)

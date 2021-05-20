@@ -20,9 +20,9 @@ import (
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
 )
 
-// rolloutRecreate implements the logic for recreating a gameserver set.
+// rolloutRecreate implements the logic for recreating a GameServerSet.
 func (c *Controller) rolloutRecreate(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet, gsMap map[types.UID][]*carrierv1alpha1.GameServer) error {
-	// Don't create a new gameserver set if not already existed, so that we avoid scaling up before scaling down.
+	// Don't create a new GameServerSet if not already existed, so that we avoid scaling up before scaling down.
 	newGSSet, oldGSSets, err := c.getAllGameServerSetsAndSyncRevision(squad, gsSetList, false)
 	if err != nil {
 		return err
@@ -30,7 +30,7 @@ func (c *Controller) rolloutRecreate(squad *carrierv1alpha1.Squad, gsSetList []*
 
 	allGSSets := append(oldGSSets, newGSSet)
 	activeOldGSSets := FilterActiveGameServerSets(oldGSSets)
-	// scale down old gameserver sets.
+	// scale down old GameServerSets.
 	scaledDown, err := c.scaleDownOldGameServerSetsForRecreate(activeOldGSSets, squad)
 	if err != nil {
 		return err
@@ -45,7 +45,7 @@ func (c *Controller) rolloutRecreate(squad *carrierv1alpha1.Squad, gsSetList []*
 		return c.syncRolloutStatus(allGSSets, newGSSet, squad)
 	}
 
-	// If we need to create a new gameserver set, create it now.
+	// If we need to create a new GameServerSet, create it now.
 	if newGSSet == nil {
 		newGSSet, oldGSSets, err = c.getAllGameServerSetsAndSyncRevision(squad, gsSetList, true)
 		if err != nil {
@@ -53,7 +53,7 @@ func (c *Controller) rolloutRecreate(squad *carrierv1alpha1.Squad, gsSetList []*
 		}
 		allGSSets = append(oldGSSets, newGSSet)
 	}
-	// scale up new gameserver set.
+	// scale up new GameServerSet.
 	if _, err := c.scaleUpNewGameServerSetForRecreate(newGSSet, squad); err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (c *Controller) rolloutRecreate(squad *carrierv1alpha1.Squad, gsSetList []*
 	return c.syncRolloutStatus(allGSSets, newGSSet, squad)
 }
 
-// scaleDownOldGameServerSetsForRecreate scales down old gameserver sets when Squad strategy is "Recreate".
+// scaleDownOldGameServerSetsForRecreate scales down old GameServerSets when Squad strategy is "Recreate".
 func (c *Controller) scaleDownOldGameServerSetsForRecreate(oldGSSets []*carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) (bool, error) {
 	scaled := false
 	for i := range oldGSSets {
@@ -88,7 +88,7 @@ func (c *Controller) scaleDownOldGameServerSetsForRecreate(oldGSSets []*carrierv
 	return scaled, nil
 }
 
-// oldGameServersRunning returns whether there are old GameServers running or any of the old gameserver sets thinks that it runs GameServers.
+// oldGameServersRunning returns whether there are old GameServers running or any of the old GameServerSets thinks that it runs GameServers.
 func oldGameServersRunning(newGSSet *carrierv1alpha1.GameServerSet, oldGSSets []*carrierv1alpha1.GameServerSet, gsMap map[types.UID][]*carrierv1alpha1.GameServer) bool {
 	if oldGameServers := GetActualReplicaCountForGameServerSets(oldGSSets); oldGameServers > 0 {
 		return true
@@ -107,7 +107,7 @@ func oldGameServersRunning(newGSSet *carrierv1alpha1.GameServerSet, oldGSSets []
 				// If we can't be sure that the pod is not running, we have to count it.
 				return true
 			default:
-				// gameserver is not in terminal phase.
+				// GameServer is not in terminal phase.
 				return true
 			}
 		}
@@ -115,7 +115,7 @@ func oldGameServersRunning(newGSSet *carrierv1alpha1.GameServerSet, oldGSSets []
 	return false
 }
 
-// scaleUpNewGameServerSetForRecreate scales up new gameserver set when Squad strategy is "Recreate".
+// scaleUpNewGameServerSetForRecreate scales up new GameServerSet when Squad strategy is "Recreate".
 func (c *Controller) scaleUpNewGameServerSetForRecreate(newGSSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) (bool, error) {
 	scaled, _, err := c.scaleGameServerSetAndRecordEvent(newGSSet, squad.Spec.Replicas, squad)
 	return scaled, err

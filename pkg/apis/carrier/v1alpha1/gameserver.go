@@ -60,21 +60,21 @@ type GameServerSpec struct {
 	// Template describes the Pod that will be created for the GameServer.
 	Template corev1.PodTemplateSpec `json:"template"`
 
-	// Constraints describes the constraints of game server.
+	// Constraints describes the constraints of GameServer.
 	// This filed may be added or changed by controller or manually.
 	// If anyone of them is `NotInService` and Effective is `True`,
-	// game server container should not continue serving and should set `Retired` true, HasPlayer false
+	// GameServer container should not continue serving and should set `Retired` true, HasPlayer false
 	// to conditions when it has closed the connection to players.
 	Constraints []Constraint `json:"constraints,omitempty"`
 
-	// If specified, all readiness gates will be evaluated for game server readiness.
-	// A game server is ready when all its pod are ready AND
+	// If specified, all readiness gates will be evaluated for GameServer readiness.
+	// A GameServer is ready when all its pod are ready AND
 	// all conditions specified in the readiness gates have status equal to "True"
 	// +optional
 	ReadinessGates []string `json:"readinessGates,omitempty"`
 
-	// If specified, all deletable gates will be evaluated for game server deletable.
-	// A game server is deletable when all its pod are deletable AND
+	// If specified, all deletable gates will be evaluated for GameServer deletable.
+	// A GameServer is deletable when all its pod are deletable AND
 	// all conditions specified in the deletable gates have status equal to "True"
 	// +optional
 	DeletableGates []string `json:"deletableGates,omitempty"`
@@ -180,10 +180,10 @@ type Health struct {
 // ConstraintType describes the constraint name
 type ConstraintType string
 
-// NotInService is one of the ConstraintTypes, which marks game server should close the connection.
+// NotInService is one of the ConstraintTypes, which marks GameServer should close the connection.
 const NotInService ConstraintType = `NotInService`
 
-// Constraint describes the constraint info of game server.
+// Constraint describes the constraint info of GameServer.
 type Constraint struct {
 	// Type is the ConstraintType name, e.g. NotInService.
 	Type ConstraintType `json:"type"`

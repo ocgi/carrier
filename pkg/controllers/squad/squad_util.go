@@ -37,7 +37,7 @@ import (
 	"github.com/ocgi/carrier/pkg/util/hash"
 )
 
-// FilterActiveGameServerSets returns gameserver sets that have (or at least ought to have) GameServers.
+// FilterActiveGameServerSets returns GameServerSets that have (or at least ought to have) GameServers.
 func FilterActiveGameServerSets(gsSetList []*carrierv1alpha1.GameServerSet) []*carrierv1alpha1.GameServerSet {
 	activeFilter := func(gsSet *carrierv1alpha1.GameServerSet) bool {
 		return gsSet != nil && gsSet.Spec.Replicas > 0
@@ -47,7 +47,7 @@ func FilterActiveGameServerSets(gsSetList []*carrierv1alpha1.GameServerSet) []*c
 
 type filterGSSet func(gsSet *carrierv1alpha1.GameServerSet) bool
 
-// FilterGameServerSets returns gameserver set that are filtered by filterFn (all returned ones should match filterFn).
+// FilterGameServerSets returns GameServerSet that are filtered by filterFn (all returned ones should match filterFn).
 func FilterGameServerSets(gsSetList []*carrierv1alpha1.GameServerSet, filterFn filterGSSet) []*carrierv1alpha1.GameServerSet {
 	var filtered []*carrierv1alpha1.GameServerSet
 	for i := range gsSetList {
@@ -87,7 +87,7 @@ func getSkippedAnnotations(annotations map[string]string) map[string]string {
 	return skippedAnnotations
 }
 
-// GetReplicaCountForGameServerSets returns the sum of Replicas of the given gameserver sets.
+// GetReplicaCountForGameServerSets returns the sum of Replicas of the given GameServerSets.
 func GetReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameServerSet) int32 {
 	totalReplicas := int32(0)
 	for _, gsSet := range gsSetList {
@@ -98,7 +98,7 @@ func GetReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameServerSet
 	return totalReplicas
 }
 
-// GetActualReplicaCountForGameServerSets returns the sum of actual replicas of the given gameserver set.
+// GetActualReplicaCountForGameServerSets returns the sum of actual replicas of the given GameServerSet.
 func GetActualReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameServerSet) int32 {
 	totalActualReplicas := int32(0)
 	for _, gsSet := range gsSetList {
@@ -109,7 +109,7 @@ func GetActualReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameSer
 	return totalActualReplicas
 }
 
-// GetUpdateReplicaCountForGameServerSets returns the sum of update replicas of the given gameserver set.
+// GetUpdateReplicaCountForGameServerSets returns the sum of update replicas of the given GameServerSet.
 func GetUpdateReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameServerSet) int32 {
 	totalActualReplicas := int32(0)
 	for _, gsSet := range gsSetList {
@@ -124,7 +124,7 @@ func GetUpdateReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameSer
 	return totalActualReplicas
 }
 
-// GetReadyReplicaCountForGameServerSets returns the number of ready GameServers corresponding to the given gameserver sets.
+// GetReadyReplicaCountForGameServerSets returns the number of ready GameServers corresponding to the given GameServerSets.
 func GetReadyReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameServerSet) int32 {
 	totalReadyReplicas := int32(0)
 	for _, gsSet := range gsSetList {
@@ -135,8 +135,8 @@ func GetReadyReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameServ
 	return totalReadyReplicas
 }
 
-// FindOldGameServerSets returns the old gameserver sets targeted by the given Squad, with the given slice of gameserver sets.
-// Note that the first set of old gameserver sets doesn't include the ones with no GameServers, and the second set of old gameserver sets include all old gameserver sets.
+// FindOldGameServerSets returns the old GameServerSets targeted by the given Squad, with the given slice of GameServerSets.
+// Note that the first set of old GameServerSets doesn't include the ones with no GameServers, and the second set of old GameServerSets include all old GameServerSets.
 func FindOldGameServerSets(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet) ([]*carrierv1alpha1.GameServerSet, []*carrierv1alpha1.GameServerSet) {
 	var requiredGSSets []*carrierv1alpha1.GameServerSet
 	var allGSSets []*carrierv1alpha1.GameServerSet
@@ -154,7 +154,7 @@ func FindOldGameServerSets(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1a
 	return requiredGSSets, allGSSets
 }
 
-// FindNewGameServerSet returns the new gameserver set this given Squad targets (the one with the same GameServer template).
+// FindNewGameServerSet returns the new GameServerSet this given Squad targets (the one with the same GameServer template).
 func FindNewGameServerSet(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet) *carrierv1alpha1.GameServerSet {
 	sort.Sort(GameServerSetsByCreationTimestamp(gsSetList))
 	for i := range gsSetList {
@@ -166,8 +166,8 @@ func FindNewGameServerSet(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1al
 	return nil
 }
 
-// FindActiveOrLatest returns the only active or the latest gameserver set in case there is at most one active gameserver set.
-// If there are more active gameserver set, then we should proportionally scale them.
+// FindActiveOrLatest returns the only active or the latest GameServerSet in case there is at most one active GameServerSet.
+// If there are more active GameServerSet, then we should proportionally scale them.
 func FindActiveOrLatest(newGSSet *carrierv1alpha1.GameServerSet, oldGSSets []*carrierv1alpha1.GameServerSet) *carrierv1alpha1.GameServerSet {
 	if newGSSet == nil && len(oldGSSets) == 0 {
 		return nil
@@ -178,7 +178,7 @@ func FindActiveOrLatest(newGSSet *carrierv1alpha1.GameServerSet, oldGSSets []*ca
 
 	switch len(allGSSets) {
 	case 0:
-		// If there is no active gameserver set then we should return the newest.
+		// If there is no active GameServerSet then we should return the newest.
 		if newGSSet != nil {
 			return newGSSet
 		}
@@ -217,7 +217,7 @@ func getIntFromAnnotation(gsSet *carrierv1alpha1.GameServerSet, annotationKey st
 	}
 	intValue, err := strconv.Atoi(annotationValue)
 	if err != nil {
-		klog.V(2).Infof("Cannot convert the value %q with annotation key %q for the gameserver set %q", annotationValue, annotationKey, gsSet.Name)
+		klog.V(2).Infof("Cannot convert the value %q with annotation key %q for the GameServerSet %q", annotationValue, annotationKey, gsSet.Name)
 		return int32(0), false
 	}
 	return int32(intValue), true
@@ -270,7 +270,7 @@ func ReplicasAnnotationsNeedUpdate(gsSet *carrierv1alpha1.GameServerSet, desired
 	return false
 }
 
-// IsGameServerSetScaling return true if only scaling gameserver set
+// IsGameServerSetScaling return true if only scaling GameServerSet
 func IsGameServerSetScaling(gsSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) bool {
 	isScaling := false
 	desiredString := fmt.Sprintf("%d", squad.Spec.Replicas)
@@ -290,7 +290,7 @@ func IsGracefulUpdate(squad *carrierv1alpha1.Squad) bool {
 	return false
 }
 
-// IsSaturated checks if the new gameserver set is saturated by comparing its size with its Squad size.
+// IsSaturated checks if the new GameServerSet is saturated by comparing its size with its Squad size.
 func IsSaturated(squad *carrierv1alpha1.Squad, gsSet *carrierv1alpha1.GameServerSet) bool {
 	if gsSet == nil {
 		return false
@@ -389,10 +389,10 @@ func ResolveFenceposts(maxSurge, maxUnavailable *intstrutil.IntOrString, desired
 	return int32(surge), int32(unavailable), nil
 }
 
-// GetProportion will estimate the proportion for the provided gameserver set using
+// GetProportion will estimate the proportion for the provided GameServerSet using
 // 1. the current size of the parent Squad
-// 2. the replica count that needs be added on the gameserver set of the Squad
-// 3. the total replicas added in the gameserver set of the Squad so far.
+// 2. the replica count that needs be added on the GameServerSet of the Squad
+// 3. the total replicas added in the GameServerSet of the Squad so far.
 func GetProportion(gsSet *carrierv1alpha1.GameServerSet, squad carrierv1alpha1.Squad, squadReplicasToAdd, squadReplicasAdded int32) int32 {
 	if gsSet == nil || gsSet.Spec.Replicas == 0 || squadReplicasToAdd == 0 || squadReplicasToAdd == squadReplicasAdded {
 		return int32(0)
@@ -402,18 +402,18 @@ func GetProportion(gsSet *carrierv1alpha1.GameServerSet, squad carrierv1alpha1.S
 	allowed := squadReplicasToAdd - squadReplicasAdded
 
 	if squadReplicasToAdd > 0 {
-		// Use the minimum between the gameserver set fraction and the maximum allowed replicas
+		// Use the minimum between the GameServerSet fraction and the maximum allowed replicas
 		// when scaling up. This way we ensure we will not scale up more than the allowed
 		// replicas we can add.
 		return integer.Int32Min(gsFraction, allowed)
 	}
-	// Use the maximum between the gameserver set fraction and the maximum allowed replicas
+	// Use the maximum between the GameServerSet fraction and the maximum allowed replicas
 	// when scaling down. This way we ensure we will not scale down more than the allowed
 	// replicas we can remove.
 	return integer.Int32Max(gsFraction, allowed)
 }
 
-// getGameServerSetFraction estimates the fraction of replicas a gameserver set can have in
+// getGameServerSetFraction estimates the fraction of replicas a GameServerSet can have in
 // 1. a scaling event during a rollout or
 // 2. when scaling a paused Squad.
 func getGameServerSetFraction(gsSet carrierv1alpha1.GameServerSet, squad carrierv1alpha1.Squad) int32 {
@@ -431,13 +431,13 @@ func getGameServerSetFraction(gsSet carrierv1alpha1.GameServerSet, squad carrier
 	return integer.RoundToInt32(newRSsize) - gsSet.Spec.Replicas
 }
 
-// MaxRevision finds the highest revision in the gameserver set
+// MaxRevision finds the highest revision in the GameServerSet
 func MaxRevision(allGSSets []*carrierv1alpha1.GameServerSet) int64 {
 	max := int64(0)
 	for _, gsSet := range allGSSets {
 		if v, err := Revision(gsSet); err != nil {
-			// Skip the gameserver set when it failed to parse their revision information
-			klog.V(4).Infof("Error: %v. Couldn't parse revision for gameserver set %#v, Squad controller will skip it when reconciling revisions.", err, gsSet)
+			// Skip the GameServerSet when it failed to parse their revision information
+			klog.V(4).Infof("Error: %v. Couldn't parse revision for GameServerSet %#v, Squad controller will skip it when reconciling revisions.", err, gsSet)
 		} else if v > max {
 			max = v
 		}
@@ -445,13 +445,13 @@ func MaxRevision(allGSSets []*carrierv1alpha1.GameServerSet) int64 {
 	return max
 }
 
-// LastRevision finds the second max revision number in all gameserver set (the last revision)
+// LastRevision finds the second max revision number in all GameServerSet (the last revision)
 func LastRevision(allGSSets []*carrierv1alpha1.GameServerSet) int64 {
 	max, secMax := int64(0), int64(0)
 	for _, gsSet := range allGSSets {
 		if v, err := Revision(gsSet); err != nil {
-			// Skip the gameserver set when it failed to parse their revision information
-			klog.V(4).Infof("Error: %v. Couldn't parse revision for gameserver set %#v, squad controller will skip it when reconciling revisions.", err, gsSet)
+			// Skip the GameServerSet when it failed to parse their revision information
+			klog.V(4).Infof("Error: %v. Couldn't parse revision for GameServerSet %#v, squad controller will skip it when reconciling revisions.", err, gsSet)
 		} else if v >= max {
 			secMax = max
 			max = v
@@ -475,12 +475,12 @@ func Revision(obj runtime.Object) (int64, error) {
 	return strconv.ParseInt(v, 10, 64)
 }
 
-// SetNewGameServerSetAnnotations sets new gameserver set's annotations appropriately by updating its revision and
-// copying required Squad annotations to it; it returns true if gameserver set's annotation is changed.
+// SetNewGameServerSetAnnotations sets new GameServerSet's annotations appropriately by updating its revision and
+// copying required Squad annotations to it; it returns true if GameServerSet's annotation is changed.
 func SetNewGameServerSetAnnotations(squad *carrierv1alpha1.Squad, newGSSet *carrierv1alpha1.GameServerSet, newRevision string, exists bool, revHistoryLimitInChars int) bool {
 	// First, copy Squad's annotations (except for apply and revision annotations)
 	annotationChanged := copySquadAnnotationsToGameServerSet(squad, newGSSet)
-	// Then, update gameserver set's revision annotation
+	// Then, update GameServerSet's revision annotation
 	if newGSSet.Annotations == nil {
 		newGSSet.Annotations = make(map[string]string)
 	}
@@ -491,7 +491,7 @@ func SetNewGameServerSetAnnotations(squad *carrierv1alpha1.Squad, newGSSet *carr
 	oldRevisionInt, err := strconv.ParseInt(oldRevision, 10, 64)
 	if err != nil {
 		if oldRevision != "" {
-			klog.Warningf("Updating gameserver set revision OldRevision not int %s", err)
+			klog.Warningf("Updating GameServerSet revision OldRevision not int %s", err)
 			return false
 		}
 		//If the GSSet annotation is empty then initialise it to 0
@@ -499,13 +499,13 @@ func SetNewGameServerSetAnnotations(squad *carrierv1alpha1.Squad, newGSSet *carr
 	}
 	newRevisionInt, err := strconv.ParseInt(newRevision, 10, 64)
 	if err != nil {
-		klog.Warningf("Updating gameserver set revision NewRevision not int %s", err)
+		klog.Warningf("Updating GameServerSet revision NewRevision not int %s", err)
 		return false
 	}
 	if oldRevisionInt < newRevisionInt {
 		newGSSet.Annotations[util.RevisionAnnotation] = newRevision
 		annotationChanged = true
-		klog.V(4).Infof("Updating gameserver set %q revision to %s", newGSSet.Name, newRevision)
+		klog.V(4).Infof("Updating GameServerSet %q revision to %s", newGSSet.Name, newRevision)
 	}
 	if !exists && SetReplicasAnnotations(newGSSet, squad.Spec.Replicas, squad.Spec.Replicas+MaxSurge(*squad)) {
 		annotationChanged = true
@@ -526,8 +526,8 @@ func skipCopyAnnotation(key string) bool {
 	return annotationsToSkip[key]
 }
 
-// copySquadAnnotationsToGameServerSet copies Squad's annotations to gameserver set's annotations,
-// and returns true if gameserver set's annotation is changed.
+// copySquadAnnotationsToGameServerSet copies Squad's annotations to GameServerSet's annotations,
+// and returns true if GameServerSet's annotation is changed.
 // Note that apply and revision annotations are not copied.
 func copySquadAnnotationsToGameServerSet(squad *carrierv1alpha1.Squad, gsSet *carrierv1alpha1.GameServerSet) bool {
 	gsSetAnnotationsChanged := false
@@ -648,7 +648,7 @@ func NewGSSetNewReplicas(squad *carrierv1alpha1.Squad, allGSSets []*carrierv1alp
 }
 
 // SquadComplete considers a Squad to be complete once all of its desired replicas
-// are updated , and no old gameservers are running.
+// are updated , and no old GameServers are running.
 func SquadComplete(squad *carrierv1alpha1.Squad, newStatus *carrierv1alpha1.SquadStatus) bool {
 	return newStatus.UpdatedReplicas == squad.Spec.Replicas &&
 		newStatus.Replicas == squad.Spec.Replicas &&
@@ -677,8 +677,8 @@ func RemoveSquadCondition(status *carrierv1alpha1.SquadStatus, condType carrierv
 	status.Conditions = filterOutCondition(status.Conditions, condType)
 }
 
-// GameServerSetToSquadCondition converts a gameserver set condition into a Squad condition.
-// Useful for promoting gameserver set failure conditions into Squad.
+// GameServerSetToSquadCondition converts a GameServerSet condition into a Squad condition.
+// Useful for promoting GameServerSet failure conditions into Squad.
 func GameServerSetToSquadCondition(cond carrierv1alpha1.GameServerSetCondition) carrierv1alpha1.SquadCondition {
 	return carrierv1alpha1.SquadCondition{
 		Type:               carrierv1alpha1.SquadConditionType(cond.Type),
@@ -690,7 +690,7 @@ func GameServerSetToSquadCondition(cond carrierv1alpha1.GameServerSetCondition) 
 	}
 }
 
-// HasRevisionHistoryLimit checks if the Squad d is expected to keep a specified number of old gameserver sets
+// HasRevisionHistoryLimit checks if the Squad d is expected to keep a specified number of old GameServerSets
 func HasRevisionHistoryLimit(squad *carrierv1alpha1.Squad) bool {
 	return squad.Spec.RevisionHistoryLimit != nil && *squad.Spec.RevisionHistoryLimit != math.MaxInt32
 }
@@ -702,7 +702,7 @@ func ComputeHash(template *carrierv1alpha1.GameServerTemplateSpec) string {
 	return rand.SafeEncodeString(fmt.Sprint(gsTemplateSpecHasher.Sum32()))
 }
 
-// SetGameServerTemplateHashLabels setting pod spec hash to gameserver set labels
+// SetGameServerTemplateHashLabels setting pod spec hash to GameServerSet labels
 func SetGameServerTemplateHashLabels(gsSet *carrierv1alpha1.GameServerSet) {
 	podSpecHash := ComputePodSpecHash(&gsSet.Spec.Template.Spec.Template.Spec)
 	if gsSet.Labels == nil {
@@ -715,7 +715,7 @@ func SetGameServerTemplateHashLabels(gsSet *carrierv1alpha1.GameServerSet) {
 	gsSet.Spec.Template.Labels[util.GameServerHash] = podSpecHash
 }
 
-// SetGameServerSetInplaceUpdateAnnotations setting gameserver set annotations when inplace update
+// SetGameServerSetInplaceUpdateAnnotations setting GameServerSet annotations when inplace update
 func SetGameServerSetInplaceUpdateAnnotations(gsSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) {
 	if gsSet.Annotations == nil {
 		gsSet.Annotations = make(map[string]string)
@@ -731,7 +731,7 @@ func ComputePodSpecHash(spec *corev1.PodSpec) string {
 	return rand.SafeEncodeString(fmt.Sprint(gsTemplateHasher.Sum32()))
 }
 
-// GameServerSetsByCreationTimestamp sorts a list of gameserver set by creation timestamp, using their names as a tie breaker.
+// GameServerSetsByCreationTimestamp sorts a list of GameServerSet by creation timestamp, using their names as a tie breaker.
 type GameServerSetsByCreationTimestamp []*carrierv1alpha1.GameServerSet
 
 func (o GameServerSetsByCreationTimestamp) Len() int      { return len(o) }
@@ -743,8 +743,8 @@ func (o GameServerSetsByCreationTimestamp) Less(i, j int) bool {
 	return o[i].CreationTimestamp.Before(&o[j].CreationTimestamp)
 }
 
-// GameServerSetsBySizeNewer sorts a list of gameserver set by size in descending order, using their creation timestamp or name as a tie breaker.
-// By using the creation timestamp, this sorts from new to old gameserver set.
+// GameServerSetsBySizeNewer sorts a list of GameServerSet by size in descending order, using their creation timestamp or name as a tie breaker.
+// By using the creation timestamp, this sorts from new to old GameServerSet.
 type GameServerSetsBySizeNewer []*carrierv1alpha1.GameServerSet
 
 func (o GameServerSetsBySizeNewer) Len() int      { return len(o) }
@@ -756,8 +756,8 @@ func (o GameServerSetsBySizeNewer) Less(i, j int) bool {
 	return o[i].Spec.Replicas > o[j].Spec.Replicas
 }
 
-// GameServerSetsBySizeOlder sorts a list of gameserver set by size in descending order, using their creation timestamp or name as a tie breaker.
-// By using the creation timestamp, this sorts from old to new gameserver set.
+// GameServerSetsBySizeOlder sorts a list of GameServerSet by size in descending order, using their creation timestamp or name as a tie breaker.
+// By using the creation timestamp, this sorts from old to new GameServerSet.
 type GameServerSetsBySizeOlder []*carrierv1alpha1.GameServerSet
 
 func (o GameServerSetsBySizeOlder) Len() int      { return len(o) }

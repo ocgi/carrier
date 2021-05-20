@@ -24,7 +24,7 @@ import (
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
 )
 
-// rolloutRecreate implements the logic for rolling a gameserver set.
+// rolloutRecreate implements the logic for rolling a GameServerSet.
 func (c *Controller) rolloutRolling(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet) error {
 	newGSSet, oldGSSets, err := c.getAllGameServerSetsAndSyncRevision(squad, gsSetList, true)
 	if err != nil {
@@ -86,7 +86,7 @@ func (c *Controller) reconcileOldGameServerSets(allGSSets []*carrierv1alpha1.Gam
 	}
 
 	allGameServersCount := GetReplicaCountForGameServerSets(allGSSets)
-	klog.V(4).Infof("New gameserver set %s/%s has %d ready gameservers.", newGSSet.Namespace, newGSSet.Name, newGSSet.Status.ReadyReplicas)
+	klog.V(4).Infof("New GameServerSet %s/%s has %d ready GameServers.", newGSSet.Namespace, newGSSet.Name, newGSSet.Status.ReadyReplicas)
 	maxUnavailable := MaxUnavailable(*squad)
 	minAvailable := squad.Spec.Replicas - maxUnavailable
 	newGSSetUnreadyGameServerCount := newGSSet.Spec.Replicas - newGSSet.Status.ReadyReplicas
@@ -102,7 +102,7 @@ func (c *Controller) reconcileOldGameServerSets(allGSSets []*carrierv1alpha1.Gam
 	}
 	klog.V(4).Infof("Cleaned up unhealthy replicas from old GSSets by %d", cleanupCount)
 
-	// Scale down old gameserver set, need check maxUnavailable to ensure we can scale down
+	// Scale down old GameServerSet, need check maxUnavailable to ensure we can scale down
 	allGSSets = append(oldGSSets, newGSSet)
 	scaledDownCount, err := c.scaleDownOldGameServerSetsForRollingUpdate(allGSSets, oldGSSets, squad)
 	if err != nil {
@@ -114,7 +114,7 @@ func (c *Controller) reconcileOldGameServerSets(allGSSets []*carrierv1alpha1.Gam
 	return totalScaledDown > 0, nil
 }
 
-// scaleDownOldGameServerSetsForRollingUpdate scales down old gameserver set when Squad strategy is "RollingUpdate".
+// scaleDownOldGameServerSetsForRollingUpdate scales down old GameServerSet when Squad strategy is "RollingUpdate".
 // Need check maxUnavailable to ensure availability
 func (c *Controller) scaleDownOldGameServerSetsForRollingUpdate(allGSSets []*carrierv1alpha1.GameServerSet, oldGSSets []*carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) (int32, error) {
 	maxUnavailable := MaxUnavailable(*squad)
@@ -127,7 +127,7 @@ func (c *Controller) scaleDownOldGameServerSetsForRollingUpdate(allGSSets []*car
 		// Cannot scale down.
 		return 0, nil
 	}
-	klog.V(4).Infof("Found %d available gameservers in Squad %s, scaling down old GSSets", readyGameServerCount, squad.Name)
+	klog.V(4).Infof("Found %d available GameServers in Squad %s, scaling down old GSSets", readyGameServerCount, squad.Name)
 
 	sort.Sort(GameServerSetsByCreationTimestamp(oldGSSets))
 
@@ -139,7 +139,7 @@ func (c *Controller) scaleDownOldGameServerSetsForRollingUpdate(allGSSets []*car
 			break
 		}
 		if targetGSSet.Spec.Replicas == 0 {
-			// cannot scale down this gameserver set.
+			// cannot scale down this GameServerSet.
 			continue
 		}
 		// Scale down.

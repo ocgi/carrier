@@ -117,7 +117,7 @@ type RollingUpdateSquad struct {
 
 // CanaryUpdateSquad controls the desired behavior of canary update.
 type CanaryUpdateSquad struct {
-	// Type of update gameserver. Can be "deleteFirst" or "createFirst" or "inplace". Default is "createFirst".
+	// Type of update GameServer. Can be "deleteFirst" or "createFirst" or "inplace". Default is "createFirst".
 	Type GameServerStrategyType `json:"type"`
 	// The number of GameServers than can be updated
 	// Value can be an absolute number(ex: 5) or a percentage of total GameServers at
@@ -136,9 +136,9 @@ type InplaceUpdateSquad struct {
 type GameServerStrategyType string
 
 const (
-	// DeleteFirstGameServerStrategyType kill gameserver before creating new ones
+	// DeleteFirstGameServerStrategyType Kill GameServer before creating new ones
 	DeleteFirstGameServerStrategyType GameServerStrategyType = "deleteFirst"
-	// CreateFirstGameServerStrategyType create new gameserver before kill the old ones
+	// CreateFirstGameServerStrategyType Create new GameServer before kill the old ones
 	CreateFirstGameServerStrategyType GameServerStrategyType = "createFirst"
 )
 

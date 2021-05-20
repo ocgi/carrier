@@ -32,7 +32,7 @@ import (
 func (c *Controller) syncRolloutStatus(allGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) error {
 	newStatus := calculateStatus(allGSSets, newGSSet, squad)
 	klog.V(4).Infof("sync squad status: name: %v, spec: %v, status: %+v", squad.ObjectMeta, squad.Spec, newStatus)
-	// If there is only one gameserver set that is active then that means we are not running
+	// If there is only one GameServerSet that is active then that means we are not running
 	// a new rollout and this is a resync where we don't need to estimate any progress.
 	// In such a case, we should simply not estimate any progress for this Squad.
 	currentCond := GetSquadCondition(squad.Status, carrierv1alpha1.SquadProgressing)
@@ -42,7 +42,7 @@ func (c *Controller) syncRolloutStatus(allGSSets []*carrierv1alpha1.GameServerSe
 	if !isCompleteSquad {
 		switch {
 		case SquadComplete(squad, &newStatus):
-			// Update the Squad conditions with a message for the new gameserver set that
+			// Update the Squad conditions with a message for the new GameServerSet that
 			// was successfully deployed. If the condition already exists, we ignore this update.
 			msg := fmt.Sprintf("Squad %q has successfully progressed.", squad.Name)
 			if newGSSet != nil {
@@ -68,10 +68,10 @@ func (c *Controller) syncRolloutStatus(allGSSets []*carrierv1alpha1.GameServerSe
 		}
 	}
 
-	// Move failure conditions of all gameserver sets in Squad conditions. For now,
+	// Move failure conditions of all GameServerSets in Squad conditions. For now,
 	// only one failure condition is returned from getReplicaFailures.
 	if replicaFailureCond := c.getReplicaFailures(allGSSets, newGSSet); len(replicaFailureCond) > 0 {
-		// There will be only one ReplicaFailure condition on the gameserver set.
+		// There will be only one ReplicaFailure condition on the GameServerSet.
 		SetSquadCondition(&newStatus, replicaFailureCond[0])
 	} else {
 		RemoveSquadCondition(&newStatus, carrierv1alpha1.SquadReplicaFailure)
@@ -88,7 +88,7 @@ func (c *Controller) syncRolloutStatus(allGSSets []*carrierv1alpha1.GameServerSe
 	return err
 }
 
-// getReplicaFailures will convert replica failure conditions from gameserver sets
+// getReplicaFailures will convert replica failure conditions from GameServerSets
 // to Squad conditions.
 func (c *Controller) getReplicaFailures(allGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carrierv1alpha1.GameServerSet) []carrierv1alpha1.SquadCondition {
 	var conditions []carrierv1alpha1.SquadCondition
@@ -101,7 +101,7 @@ func (c *Controller) getReplicaFailures(allGSSets []*carrierv1alpha1.GameServerS
 		}
 	}
 
-	// Return failures for the new gameserver set over failures from old gameserver sets.
+	// Return failures for the new GameServerSet over failures from old GameServerSets.
 	if len(conditions) > 0 {
 		return conditions
 	}
