@@ -417,7 +417,9 @@ func (c *Controller) syncGameServerRunningState(gs *carrierv1alpha1.GameServer) 
 	if err != nil {
 		return gs, err
 	}
-	if pod.Labels[util.GameServerHash] != gs.Labels[util.GameServerHash] {
+	oldHash := pod.Labels[util.GameServerHash]
+	newHash := gs.Labels[util.GameServerHash]
+	if oldHash != newHash || len(oldHash) == 0 && len(newHash) == 0 {
 		klog.V(4).Infof("hash not equal start update %v", pod.Name)
 		podCopy := pod.DeepCopy()
 		updatePodSpec(gs, podCopy)

@@ -32,6 +32,7 @@ import (
 	"k8s.io/utils/integer"
 
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
+	"github.com/ocgi/carrier/pkg/controllers/gameserversets"
 	"github.com/ocgi/carrier/pkg/util"
 	"github.com/ocgi/carrier/pkg/util/hash"
 )
@@ -114,7 +115,7 @@ func GetUpdateReplicaCountForGameServerSets(gsSetList []*carrierv1alpha1.GameSer
 	for _, gsSet := range gsSetList {
 		if gsSet != nil {
 			if _, ok := gsSet.Annotations[util.GameServerInPlaceUpdateAnnotation]; ok {
-				totalActualReplicas += GetGameServerSetInplaceUpdateStatus(gsSet)
+				totalActualReplicas += gameserversets.GetGameServerSetInplaceUpdateStatus(gsSet)
 			} else {
 				totalActualReplicas += gsSet.Status.Replicas
 			}
@@ -720,19 +721,6 @@ func SetGameServerSetInplaceUpdateAnnotations(gsSet *carrierv1alpha1.GameServerS
 		gsSet.Annotations = make(map[string]string)
 	}
 	gsSet.Annotations[util.GameServerInPlaceUpdateAnnotation] = strconv.Itoa(int(InplaceThreshold(*squad)))
-}
-
-// GetGameServerSetInplaceUpdateStatus get the current number of updated replicas
-func GetGameServerSetInplaceUpdateStatus(gsSet *carrierv1alpha1.GameServerSet) int32 {
-	if gsSet.Annotations == nil {
-		return 0
-	}
-	val, ok := gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation]
-	if !ok {
-		return 0
-	}
-	replicas, _ := strconv.Atoi(val)
-	return int32(replicas)
 }
 
 // ComputePodSpecHash return the hash value of the podspec

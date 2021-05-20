@@ -113,9 +113,13 @@ func applySchedulingDefaults(gss *carrierv1alpha1.GameServerSpec) {
 
 // IsDeletable returns false if the server is currently not deletable
 func IsDeletable(gs *carrierv1alpha1.GameServer) bool {
-	if IsBeforeReady(gs) {
-		return true
+	if IsInPlaceUpdating(gs) {
+		return false
 	}
+	return deleteReady(gs)
+}
+
+func deleteReady(gs *carrierv1alpha1.GameServer) bool {
 	condMap := make(map[string]carrierv1alpha1.ConditionStatus, len(gs.Status.Conditions))
 	for _, condition := range gs.Status.Conditions {
 		condMap[string(condition.Type)] = condition.Status
@@ -179,6 +183,33 @@ func IsOutOfService(gs *carrierv1alpha1.GameServer) bool {
 		}
 	}
 	return false
+}
+
+// IsInPlaceUpdating checks if a gameserver is inplace updating
+func IsInPlaceUpdating(gs *carrierv1alpha1.GameServer) bool {
+	if len(gs.Annotations) == 0 {
+		return false
+	}
+	return gs.Annotations[util.GameServerInPlaceUpdatingAnnotation] == "true"
+}
+
+// CanInPlaceUpdating checks if a gameserver can inplace updating
+func CanInPlaceUpdating(gs *carrierv1alpha1.GameServer) bool {
+	if IsBeingDeleted(gs) {
+		return false
+	}
+	if IsBeforeReady(gs) {
+		return true
+	}
+	return IsInPlaceUpdating(gs) && deleteReady(gs)
+}
+
+// SetInPlaceUpdatingStatus set if it is inplace updating
+func SetInPlaceUpdatingStatus(gs *carrierv1alpha1.GameServer, status string) {
+	if gs.Annotations == nil {
+		gs.Annotations = make(map[string]string)
+	}
+	gs.Annotations[util.GameServerInPlaceUpdatingAnnotation] = status
 }
 
 // ApplyToPodContainer applies func(v1.Container) to the specified container in the pod.
@@ -470,6 +501,9 @@ func updatePodSpec(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 	var image string
 	var resources corev1.ResourceRequirements
 	var env []corev1.EnvVar
+	if pod.Labels == nil {
+		pod.Labels = make(map[string]string)
+	}
 	pod.Labels[util.GameServerHash] = gs.Labels[util.GameServerHash]
 	for _, container := range gs.Spec.Template.Spec.Containers {
 		if container.Name != util.GameServerContainerName {

@@ -100,6 +100,8 @@ const (
 	GameServerInPlaceUpdateAnnotation = "carrier.ocgi.dev/inplace-update-threshold"
 	// GameServerInPlaceUpdatedReplicasAnnotation describes in place updated game server number
 	GameServerInPlaceUpdatedReplicasAnnotation = "carrier.ocgi.dev/inplace-updated-replicas"
+	// GameServerInPlaceUpdatingAnnotation describes in place updateing is doning("true", false)
+	GameServerInPlaceUpdatingAnnotation = "carrier.ocgi.dev/inplace-updating"
 )
 
 var (

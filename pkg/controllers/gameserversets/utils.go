@@ -142,6 +142,22 @@ func GetDeletionCostFromGameServerAnnotations(annotations map[string]string) (in
 	return int64(math.MaxInt64), nil
 }
 
+// GetGameServerSetInplaceUpdateStatus get the current number of updated replicas
+func GetGameServerSetInplaceUpdateStatus(gsSet *carrierv1alpha1.GameServerSet) int32 {
+	if gsSet.Annotations == nil {
+		return 0
+	}
+	val, ok := gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation]
+	if !ok {
+		return 0
+	}
+	replicas, err := strconv.Atoi(val)
+	if err != nil {
+		return 0
+	}
+	return int32(replicas)
+}
+
 func validFirstDigit(str string) bool {
 	if len(str) == 0 {
 		return false
