@@ -119,6 +119,11 @@ func IsDeletable(gs *carrierv1alpha1.GameServer) bool {
 	return deleteReady(gs)
 }
 
+// IsDeletableWithGates returns false if the server is currently not deletable and has deletableGates
+func IsDeletableWithGates(gs *carrierv1alpha1.GameServer) bool {
+	return len(gs.Spec.DeletableGates) != 0 && IsDeletable(gs)
+}
+
 func deleteReady(gs *carrierv1alpha1.GameServer) bool {
 	condMap := make(map[string]carrierv1alpha1.ConditionStatus, len(gs.Status.Conditions))
 	for _, condition := range gs.Status.Conditions {

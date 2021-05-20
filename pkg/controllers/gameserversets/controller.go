@@ -286,7 +286,7 @@ func (c *Controller) manageReplicas(key string, list []*carrierv1alpha1.GameServ
 	}
 	var toDeletes, candidates, runnings []*carrierv1alpha1.GameServer
 	if len(toDeleteList) > 0 {
-		toDeletes, candidates, runnings = filteredGameServers(toDeleteList)
+		toDeletes, candidates, runnings = classifyGameServers(toDeleteList)
 		// GameServers can be deleted directly.
 		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "ToDelete", "Created GameServer: %+v, can delete: %v", len(list), len(toDeleteList))
 		klog.Infof("toDeleteList toDeletes %v, candidates %v, runnings %v",
@@ -353,7 +353,7 @@ func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error
 	// 2. Update image, remove annotation
 
 	// update game servers
-	canUpdates, waiting, runnings := filteredGameServers(oldGameServers)
+	canUpdates, waiting, runnings := classifyGameServers(oldGameServers)
 	var candidates []*carrierv1alpha1.GameServer
 	candidates = append(candidates, sortGameServersByCreationTime(canUpdates)...)
 	candidates = append(candidates, sortGameServersByCreationTime(waiting)...)
@@ -430,7 +430,7 @@ func (c *Controller) computeReconciliationAction(gsSet *carrierv1alpha1.GameServ
 			}
 
 			// GameServer is offline, should delete and add new one
-			if gameservers.IsDeletable(gs) && gameservers.IsOutOfService(gs) {
+			if gameservers.IsDeletableWithGates(gs) {
 				toDeleteGameServers = append(toDeleteGameServers, gs)
 				klog.V(4).Infof("GameServer %v is out of service and and ready to be delete", gs.Name)
 			} else {
@@ -468,14 +468,13 @@ func (c *Controller) computeReconciliationAction(gsSet *carrierv1alpha1.GameServ
 		if scaling {
 			candidates := make([]*carrierv1alpha1.GameServer, len(potentialDeletions))
 			copy(candidates, potentialDeletions)
-			notReadys, deletables, deleteCandidates, runnings := classifyGameServers(candidates)
+			deletables, deleteCandidates, runnings := classifyGameServers(candidates)
 			// sort running gs
 			runnings = sortGameServers(runnings, gsSet.Spec.Scheduling, counts)
-			potentialDeletions = append(notReadys, deletables...)
-			potentialDeletions = append(potentialDeletions, deleteCandidates...)
+			potentialDeletions = append(deletables, deleteCandidates...)
 			potentialDeletions = append(potentialDeletions, runnings...)
-			klog.Infof("notReadys:%v, deletables:%v, deleteCandidates:%v, runnings:%v",
-				len(notReadys), len(deletables), len(deleteCandidates), len(runnings))
+			klog.Infof("deletables:%v, deleteCandidates:%v, runnings:%v",
+				len(deletables), len(deleteCandidates), len(runnings))
 		} else {
 			potentialDeletions = sortGameServers(potentialDeletions, gsSet.Spec.Scheduling, counts)
 		}
@@ -691,7 +690,7 @@ func computeStatus(list []*carrierv1alpha1.GameServer) carrierv1alpha1.GameServe
 		status.Replicas++
 		switch gs.Status.State {
 		case carrierv1alpha1.GameServerRunning:
-			if gameservers.IsDeletable(gs) && gameservers.IsOutOfService(gs) {
+			if gameservers.IsDeletableWithGates(gs) {
 				// do not count GS will be deleted, this GS are not online
 				continue
 			}
@@ -709,10 +708,14 @@ func excludeConstraints(gsSet *carrierv1alpha1.GameServerSet) bool {
 	return *gsSet.Spec.ExcludeConstraints
 }
 
-// classifyGameServers classify the GameServers to notReadys, deletables, deleteCandidates, runnings
-func classifyGameServers(toDelete []*carrierv1alpha1.GameServer) (notReadys,
+// classifyGameServers classify the GameServers to deletables, deleteCandidates, runnings
+func classifyGameServers(toDelete []*carrierv1alpha1.GameServer) (
 	deletables, deleteCandidates, runnings []*carrierv1alpha1.GameServer) {
+	var notReadys []*carrierv1alpha1.GameServer
 	for _, gs := range toDelete {
+		if gameservers.IsBeingDeleted(gs) {
+			continue
+		}
 		switch {
 		case gameservers.IsBeforeReady(gs):
 			notReadys = append(notReadys, gs)
@@ -724,26 +727,8 @@ func classifyGameServers(toDelete []*carrierv1alpha1.GameServer) (notReadys,
 			runnings = append(runnings, gs)
 		}
 	}
-	return
-}
-
-// filteredGameServers filters the GameServers can be deleted
-func filteredGameServers(list []*carrierv1alpha1.GameServer) (
-	toDelete, candidates, runnings []*carrierv1alpha1.GameServer) {
-	for _, gs := range list {
-		if gameservers.IsBeingDeleted(gs) {
-			continue
-		}
-		if gameservers.IsDeletable(gs) || gameservers.IsBeforeReady(gs) {
-			toDelete = append(toDelete, gs)
-			continue
-		}
-		if gameservers.IsOutOfService(gs) {
-			candidates = append(candidates, gs)
-			continue
-		}
-		runnings = append(runnings, gs)
-	}
+	// benefit for sort
+	deletables = append(notReadys, deletables...)
 	return
 }
 
