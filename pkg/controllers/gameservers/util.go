@@ -48,7 +48,7 @@ func ApplyDefaults(gs *carrierv1alpha1.GameServer) {
 // ApplyDefaults applies default values to the GameServerSpec if they are not already populated
 func applySpecDefaults(gs *carrierv1alpha1.GameServer) {
 	gss := &gs.Spec
-	if isHostPortNetwork(gs.Annotations) {
+	if isHostPortNetwork(gss) {
 		applyPortDefaults(gss)
 	}
 	applyHealthDefaults(gss)
@@ -238,7 +238,7 @@ func buildPod(gs *carrierv1alpha1.GameServer, sa string, sidecars ...corev1.Cont
 	}
 
 	podObjectMeta(gs, pod)
-	if isHostPortNetwork(gs.Annotations) {
+	if isHostPortNetwork(&gs.Spec) {
 		i, gsContainer, err := FindGameServerContainer(gs)
 		// this shouldn't happen, but if it does.
 		if err != nil {
@@ -381,7 +381,7 @@ func isGameServerPod(pod *corev1.Pod) bool {
 func applyGameServerAddressAndPort(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 	gs.Status.Address = pod.Status.PodIP
 	gs.Status.NodeName = pod.Spec.NodeName
-	if isHostPortNetwork(gs.Annotations) {
+	if isHostPortNetwork(&gs.Spec) {
 		var ingress []carrierv1alpha1.LoadBalancerIngress
 		for _, p := range gs.Spec.Ports {
 			ingress = append(ingress, carrierv1alpha1.LoadBalancerIngress{
@@ -403,20 +403,10 @@ func applyGameServerAddressAndPort(gs *carrierv1alpha1.GameServer, pod *corev1.P
 	}
 }
 
-// isBeforePodCreated checks to see if the GameServer is in a state in which the pod could not have been
-// created yet. This includes "Starting" in which a pod MAY exist, but may not yet be available, depending on when the
-// informer cache updates
-func isBeforePodCreated(gs *carrierv1alpha1.GameServer) bool {
-	state := gs.Status.State
-	return state == "" || state == carrierv1alpha1.GameServerStarting || state == carrierv1alpha1.GameServerUnknown
-}
-
 // isHostPortNetwork checks if pod runs as hostHost
-func isHostPortNetwork(ann map[string]string) bool {
-	if ann == nil {
-		return false
-	}
-	return ann[util.GameServerNetworkType] == util.GameServerHostPort
+func isHostPortNetwork(gss *carrierv1alpha1.GameServerSpec) bool {
+	spec := gss.Template.Spec
+	return spec.HostNetwork
 }
 
 // FindContainer returns the container specified by the name parameter. Returns the index and the value.

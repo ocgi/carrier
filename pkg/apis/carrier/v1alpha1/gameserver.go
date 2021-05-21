@@ -100,15 +100,12 @@ const (
 type PortPolicy string
 
 const (
-	// Static PortPolicy means that the user defines the hostPort to be used
-	// in the configuration.
+	// Static PortPolicy will use the port defined in the Pod spec or GameServerSpec.
 	Static PortPolicy = "Static"
-	// Dynamic PortPolicy means that the system will choose an open
-	// port for the GameServer in question
+	// Dynamic PortPolicy will dynamically allocated host Ports.
 	Dynamic PortPolicy = "Dynamic"
-	// Passthrough dynamically sets the `containerPort` to the same value as the dynamically selected hostPort.
-	// This will mean that users will need to lookup what port has been opened through the server side SDK.
-	Passthrough PortPolicy = "Passthrough"
+	// LoaderBalancer PortPolicy will apply the port allocated from external load balacner.
+	LoaderBalancer PortPolicy = "LoaderBalancer"
 )
 
 // GameServerPort defines a set of Ports that.
@@ -120,11 +117,7 @@ type GameServerPort struct {
 	ContainerPort *int32 `json:"containerPort,omitempty"`
 	// ContainerPortRange is the port range that is being opened on the specified container's process.
 	ContainerPortRange *PortRange `json:"containerPortRange,omitempty"`
-	// PortPolicy defines the policy for how the HostPort is populated.
-	// Dynamic port will allocate a HostPort within the selected MIN_PORT and MAX_PORT range passed to the controller
-	// at installation time.
-	// When `Static` portPolicy is specified, `HostPort` or `HostPortRange` is required, to specify the port that game clients will
-	// connect to.
+	// PortPolicy descirbes the policy to allocate ports. Dynamic is currently not implemented.
 	PortPolicy PortPolicy `json:"portPolicy,omitempty"`
 	// HostPort the port exposed on the host for clients to connect to.
 	HostPort *int32 `json:"hostPort,omitempty"`
