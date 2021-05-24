@@ -228,9 +228,6 @@ func newSquad(name string, replicas int, revisionHistoryLimit *int32, maxSurge, 
 							ContainerPort: func() *int32 { i := int32(7654); return &i }(),
 						},
 					},
-					Health: carrierv1alpha1.Health{
-						Disabled: true,
-					},
 					SdkServer: carrierv1alpha1.SdkServer{
 						LogLevel: carrierv1alpha1.SdkServerLogLevelInfo,
 						GRPCPort: int32(9020),

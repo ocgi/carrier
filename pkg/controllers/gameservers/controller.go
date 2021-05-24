@@ -694,23 +694,8 @@ func getReadyContainer(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) (bool, e
 	return false, nil
 }
 
-// addGameServerHealthCheck adds the http health check to the GameServer container
-func addGameServerHealthCheck(gs *carrierv1alpha1.GameServer, pod *corev1.Pod, healthCheckPath string) {
-	if gs.Spec.Health.Disabled {
-		return
-	}
-	for i, c := range pod.Spec.Containers {
-		if c.Name != util.GameServerContainerName {
-			continue
-		}
-		pod.Spec.Containers[i] = healthCheck(gs, pod.Spec.Containers[i], healthCheckPath)
-		return
-	}
-	return
-}
-
 // healthCheck formats liveness probe base on the GameServer Spec
-func healthCheck(gs *carrierv1alpha1.GameServer, c corev1.Container, healthCheckPath string) corev1.Container {
+func healthCheck(c *corev1.Container, healthCheckPath string) {
 	if c.LivenessProbe == nil {
 		c.LivenessProbe = &corev1.Probe{
 			Handler: corev1.Handler{
@@ -719,10 +704,9 @@ func healthCheck(gs *carrierv1alpha1.GameServer, c corev1.Container, healthCheck
 					Port: intstr.FromInt(8080),
 				},
 			},
-			InitialDelaySeconds: gs.Spec.Health.InitialDelaySeconds,
-			PeriodSeconds:       gs.Spec.Health.PeriodSeconds,
-			FailureThreshold:    gs.Spec.Health.FailureThreshold,
+			InitialDelaySeconds: 5,
+			PeriodSeconds:       3,
+			FailureThreshold:    5,
 		}
 	}
-	return c
 }

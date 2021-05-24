@@ -17,11 +17,9 @@ package gameservers
 import (
 	"fmt"
 
+	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/util/intstr"
-
-	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
 )
 
 type SDKServerConfig struct {
@@ -63,16 +61,6 @@ func (sdk *SDKServerConfig) BuildSidecar(gs *carrierv1alpha1.GameServer) corev1.
 			},
 		},
 		Resources: corev1.ResourceRequirements{},
-		LivenessProbe: &corev1.Probe{
-			Handler: corev1.Handler{
-				HTTPGet: &corev1.HTTPGetAction{
-					Path: "/healthz",
-					Port: intstr.FromInt(8080),
-				},
-			},
-			InitialDelaySeconds: 3,
-			PeriodSeconds:       3,
-		},
 	}
 
 	if gs.Spec.SdkServer.GRPCPort != 0 {
@@ -99,5 +87,9 @@ func (sdk *SDKServerConfig) BuildSidecar(gs *carrierv1alpha1.GameServer) corev1.
 	if sdk.alwaysPull {
 		sidecar.ImagePullPolicy = corev1.PullAlways
 	}
-	return healthCheck(gs, sidecar, "health")
+	if gs.Spec.SdkServer.HealthCheckEnabled != nil && *gs.Spec.SdkServer.HealthCheckEnabled {
+		healthCheck(&sidecar, "healthz")
+	}
+
+	return sidecar
 }

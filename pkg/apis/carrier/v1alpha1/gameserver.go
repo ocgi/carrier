@@ -51,19 +51,20 @@ type GameServerTemplateSpec struct {
 type GameServerSpec struct {
 	// Ports are the array of ports that can be exposed via the GameServer.
 	Ports []GameServerPort `json:"ports"`
-	// Scheduling strategy. Defaults to "MostAllocated".
+
+	// Scheduling strategy, including "LeastAllocated, MostAllocated". Defaults to "MostAllocated".
 	Scheduling SchedulingStrategy `json:"scheduling,omitempty"`
+
 	// SdkServer specifies parameters for the Carrier SDK Server sidecar container.
 	SdkServer SdkServer `json:"sdkServer,omitempty"`
-	// Health configures health checking.
-	Health Health `json:"health,omitempty"`
+
 	// Template describes the Pod that will be created for the GameServer.
 	Template corev1.PodTemplateSpec `json:"template"`
 
 	// Constraints describes the constraints of GameServer.
 	// This filed may be added or changed by controller or manually.
 	// If anyone of them is `NotInService` and Effective is `True`,
-	// GameServer container should not continue serving and should set `Retired` true, HasPlayer false
+	// GameServer container should not continue serving and should set `Retired` true, HasNoPlayer true
 	// to conditions when it has closed the connection to players.
 	Constraints []Constraint `json:"constraints,omitempty"`
 
@@ -117,7 +118,7 @@ type GameServerPort struct {
 	ContainerPort *int32 `json:"containerPort,omitempty"`
 	// ContainerPortRange is the port range that is being opened on the specified container's process.
 	ContainerPortRange *PortRange `json:"containerPortRange,omitempty"`
-	// PortPolicy descirbes the policy to allocate ports. Dynamic is currently not implemented.
+	// PortPolicy describes the policy to allocate ports. Dynamic is currently not implemented.
 	PortPolicy PortPolicy `json:"portPolicy,omitempty"`
 	// HostPort the port exposed on the host for clients to connect to.
 	HostPort *int32 `json:"hostPort,omitempty"`
@@ -156,18 +157,8 @@ type SdkServer struct {
 	GRPCPort int32 `json:"grpcPort,omitempty"`
 	// HTTPPort is the port on which the SDK Server binds the HTTP gRPC gateway server to accept incoming connections.
 	HTTPPort int32 `json:"httpPort,omitempty"`
-}
-
-// Health configures health checking on the GameServer
-type Health struct {
-	// Disabled is whether health checking is disabled or not
-	Disabled bool `json:"disabled,omitempty"`
-	// PeriodSeconds is the number of seconds each health ping has to occur in
-	PeriodSeconds int32 `json:"periodSeconds,omitempty"`
-	// FailureThreshold how many failures in a row constitutes unhealthy
-	FailureThreshold int32 `json:"failureThreshold,omitempty"`
-	// InitialDelaySeconds initial delay before checking health
-	InitialDelaySeconds int32 `json:"initialDelaySeconds,omitempty"`
+	// HealthCheckEnabled describe if health check is enabled.
+	HealthCheckEnabled *bool `json:"healthCheckEnabled,omitempty"`
 }
 
 // ConstraintType describes the constraint name

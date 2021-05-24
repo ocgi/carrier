@@ -51,7 +51,6 @@ func applySpecDefaults(gs *carrierv1alpha1.GameServer) {
 	if isHostPortNetwork(gss) {
 		applyPortDefaults(gss)
 	}
-	applyHealthDefaults(gss)
 	applySchedulingDefaults(gss)
 	applySdkServerDefaults(gss)
 }
@@ -66,21 +65,6 @@ func applySdkServerDefaults(gss *carrierv1alpha1.GameServerSpec) {
 	}
 	if gss.SdkServer.HTTPPort == 0 {
 		gss.SdkServer.HTTPPort = 9021
-	}
-}
-
-// applyHealthDefaults applies health checking defaults
-func applyHealthDefaults(gss *carrierv1alpha1.GameServerSpec) {
-	if !gss.Health.Disabled {
-		if gss.Health.PeriodSeconds <= 0 {
-			gss.Health.PeriodSeconds = 5
-		}
-		if gss.Health.FailureThreshold <= 0 {
-			gss.Health.FailureThreshold = 3
-		}
-		if gss.Health.InitialDelaySeconds <= 0 {
-			gss.Health.InitialDelaySeconds = 5
-		}
 	}
 }
 
@@ -284,7 +268,6 @@ func buildPod(gs *carrierv1alpha1.GameServer, sa string, sidecars ...corev1.Cont
 			return pod, err
 		}
 	}
-	addGameServerHealthCheck(gs, pod, "/gshealthz")
 	addSDKServerEnv(gs, pod)
 	return pod, nil
 }
@@ -342,28 +325,6 @@ func DisableServiceAccount(pod *corev1.Pod) error {
 
 		return c
 	})
-}
-
-// CountPorts returns the number of
-// ports that match condition function
-func CountPorts(gs *carrierv1alpha1.GameServer, f func(policy carrierv1alpha1.PortPolicy) bool) (int, bool) {
-	count := 0
-	continuous := false
-	for _, p := range gs.Spec.Ports {
-		if f(p.PortPolicy) {
-			if p.ContainerPort != nil {
-				count++
-			} else {
-				if p.ContainerPortRange == nil {
-					continue
-				}
-				continuous = true
-				cpr := p.ContainerPortRange
-				count += int(cpr.MaxPort-cpr.MinPort) + 1
-			}
-		}
-	}
-	return count, continuous
 }
 
 // isGameServerPod returns if this Pod is a Pod that comes from a GameServer
