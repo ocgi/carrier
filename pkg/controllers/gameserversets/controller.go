@@ -524,7 +524,7 @@ func (c *Controller) inplaceUpdateGameServers(gsSet *carrierv1alpha1.GameServerS
 		if !gameservers.CanInPlaceUpdating(gsCopy) {
 			return
 		}
-		gs.Status.Conditions = nil
+		gsCopy.Status.Conditions = nil
 		gsCopy, err = c.gameServerGetter.GameServers(gs.Namespace).UpdateStatus(gsCopy)
 		if err != nil {
 			errs <- errors.Wrapf(err, "error updating GameServer %v status for condition", gs.Name)
