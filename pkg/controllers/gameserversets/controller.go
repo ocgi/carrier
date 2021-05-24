@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -382,7 +383,7 @@ func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error
 	// make sure update GameServerSet success or failed after retry.
 	// if retry failed, make sure the cache has synced.
 	err = wait.PollImmediate(50*time.Second, 1*time.Second, func() (done bool, err error) {
-		gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = strconv.Itoa(updated + len(newGameServers))
+		gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = strconv.Itoa(int(updated) + len(newGameServers))
 		_, err = c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(gsSet)
 		if err == nil {
 			return true, nil
@@ -514,9 +515,10 @@ func (c *Controller) computeReconciliationAction(gsSet *carrierv1alpha1.GameServ
 }
 
 // inplaceUpdateGameServers update GameServer spec to api server
-func (c *Controller) inplaceUpdateGameServers(gsSet *carrierv1alpha1.GameServerSet, toUpdate []*carrierv1alpha1.GameServer) (int, error) {
+func (c *Controller) inplaceUpdateGameServers(gsSet *carrierv1alpha1.GameServerSet, toUpdate []*carrierv1alpha1.GameServer) (int32, error) {
 	klog.Infof("Updating GameServers: %v, to update %v", gsSet.Name, len(toUpdate))
 	errs := make(chan error, len(toUpdate))
+	var count int32 = 0
 	workqueue.ParallelizeUntil(context.Background(), maxDeletionParallelism, len(toUpdate), func(piece int) {
 		gs := toUpdate[piece]
 		gsCopy := gs.DeepCopy()
@@ -536,13 +538,14 @@ func (c *Controller) inplaceUpdateGameServers(gsSet *carrierv1alpha1.GameServerS
 			errs <- errors.Wrapf(err, "error inpalce updating GameServer: %v", gsCopy.Name)
 			return
 		}
+		atomic.AddInt32(&count, 1)
 		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "SuccessfulUpdate", "Update GameServer in place success %s: %v", gs.Name)
 
 	})
 	if len(errs) > 0 {
-		return len(toUpdate) - len(errs), <-errs
+		return count, <-errs
 	}
-	return len(toUpdate), nil
+	return count, nil
 }
 
 // createGameServers adds diff more GameServers to the set
