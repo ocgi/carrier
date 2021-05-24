@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -29,7 +30,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -295,10 +298,8 @@ func (c *Controller) manageReplicas(key string, list []*carrierv1alpha1.GameServ
 			klog.Errorf("error deleting game servers: %v", err)
 			return err
 		}
-		if len(runnings) > 0 {
-			if err := c.markCandidateGameServers(gsSet, runnings); err != nil {
-				return err
-			}
+		if err := c.markGameServersOutOfService(gsSet, runnings); err != nil {
+			return err
 		}
 	}
 
@@ -332,33 +333,43 @@ func (c *Controller) manageReplicas(key string, list []*carrierv1alpha1.GameServ
 	return c.doInPlaceUpdate(gsSet)
 }
 
+// doInPlaceUpdate  try to do inplace update.
+// tree 3 steps:
+// 1. update GameServer to `out of service`, add `in progress`
+// 2. update GameServer image, remove `in progress`
+// 3. update GameServerSet updated replicas. This step must
+//    ensure success or failed but ca\che synced.
 func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error {
-	inPlaceUpdating, count := IsGameServerSetInPlaceUpdating(gsSet)
+	inPlaceUpdating, desired := IsGameServerSetInPlaceUpdating(gsSet)
 	if !inPlaceUpdating {
 		return nil
 	}
+	// get servers from lister, may exist race
 	oldGameServers, newGameServers, err := c.getOldAndNewReplicas(gsSet)
 	if err != nil {
 		klog.Error(err)
 		return err
 	}
-	gap := count - len(newGameServers)
+	diff := desired - len(newGameServers)
 	updatedCount := GetGameServerSetInplaceUpdateStatus(gsSet)
-	if gap <= 0 || updatedCount == int32(count) {
-		klog.V(4).Infof("desired replicas satisfied, desired: %v, new version: %v", count, len(newGameServers))
+	if diff <= 0 || updatedCount == int32(desired) {
+		klog.V(4).Infof("desired replicas satisfied, desired: %v, new version: %v", diff, len(newGameServers))
 		return nil
 	}
-	// two steps:
+	// two steps of GameServer:
 	// 1. Mark NotInService; add annotation: inplaceUpdating: true
 	// 2. Update image, remove annotation
 
 	// update game servers
-	canUpdates, waiting, runnings := classifyGameServers(oldGameServers)
+	canUpdates, waitings, runnings := classifyGameServers(oldGameServers)
 	var candidates []*carrierv1alpha1.GameServer
 	candidates = append(candidates, sortGameServersByCreationTime(canUpdates)...)
-	candidates = append(candidates, sortGameServersByCreationTime(waiting)...)
+	candidates = append(candidates, sortGameServersByCreationTime(waitings)...)
 	candidates = append(candidates, sortGameServersByCreationTime(runnings)...)
-	candidates = candidates[0:gap]
+	if diff > len(candidates) {
+		diff = len(candidates)
+	}
+	candidates = candidates[0:diff]
 
 	if err = c.markGameServersOutOfService(gsSet, candidates, func(gs *carrierv1alpha1.GameServer) {
 		gameservers.SetInPlaceUpdatingStatus(gs, "true")
@@ -366,18 +377,29 @@ func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error
 		return err
 	}
 
-	if err = c.updateGameServers(gsSet, candidates); err != nil {
-		return err
+	updated, inPlaceErr := c.inplaceUpdateGameServers(gsSet, candidates)
+	// updated is from api(source of truth).
+	// make sure update GameServerSet success or failed after retry.
+	// if retry failed, make sure the cache has synced.
+	err = wait.PollImmediate(50*time.Second, 1*time.Second, func() (done bool, err error) {
+		gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = strconv.Itoa(updated + len(newGameServers))
+		_, err = c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(gsSet)
+		if err == nil {
+			return true, nil
+		}
+		if !k8serrors.IsNotFound(err) {
+			return false, err
+		}
+		gsSetCopy, getErr := c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Get(gsSet.Name, metav1.GetOptions{})
+		if getErr != nil {
+			return false, nil
+		}
+		gsSet = gsSetCopy
+		return false, nil
+	})
+	if inPlaceErr != nil {
+		return inPlaceErr
 	}
-
-	// calculate numbers again
-	oldGameServers, newGameServers, err = c.getOldAndNewReplicas(gsSet)
-	if err != nil {
-		klog.Error(err)
-		return err
-	}
-	gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = strconv.Itoa(len(newGameServers))
-	_, err = c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(gsSet)
 	return err
 }
 
@@ -391,8 +413,8 @@ func (c *Controller) getOldAndNewReplicas(gsSet *carrierv1alpha1.GameServerSet) 
 	if err != nil {
 		return nil, nil, err
 	}
-	selector, err := labels.Parse(fmt.Sprintf("%s!=%s,%s=%s", util.GameServerHash, gsSet.Labels[util.GameServerHash], util.GameServerSetGameServerLabel,
-		gsSet.Name))
+	selector, err := labels.Parse(fmt.Sprintf("%s!=%s,%s=%s", util.GameServerHash,
+		gsSet.Labels[util.GameServerHash], util.GameServerSetGameServerLabel, gsSet.Name))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -491,61 +513,36 @@ func (c *Controller) computeReconciliationAction(gsSet *carrierv1alpha1.GameServ
 	return toAdd, toDeleteGameServers, partialReconciliation
 }
 
-// updateGameServers update GameServer spec to api server
-func (c *Controller) updateGameServers(gsSet *carrierv1alpha1.GameServerSet, toUpdate []*carrierv1alpha1.GameServer) error {
+// inplaceUpdateGameServers update GameServer spec to api server
+func (c *Controller) inplaceUpdateGameServers(gsSet *carrierv1alpha1.GameServerSet, toUpdate []*carrierv1alpha1.GameServer) (int, error) {
 	klog.Infof("Updating GameServers: %v, to update %v", gsSet.Name, len(toUpdate))
-	var errs []error
+	errs := make(chan error, len(toUpdate))
 	workqueue.ParallelizeUntil(context.Background(), maxDeletionParallelism, len(toUpdate), func(piece int) {
-		gs := toUpdate[piece].DeepCopy()
+		gs := toUpdate[piece]
+		gsCopy := gs.DeepCopy()
 		var err error
-		if !gameservers.CanInPlaceUpdating(gs) {
+		if !gameservers.CanInPlaceUpdating(gsCopy) {
 			return
 		}
 		gs.Status.Conditions = nil
-		gs, err = c.gameServerGetter.GameServers(gs.Namespace).UpdateStatus(gs)
+		gsCopy, err = c.gameServerGetter.GameServers(gs.Namespace).UpdateStatus(gsCopy)
 		if err != nil {
-			errs = append(errs, errors.Wrapf(err, "error updating GameServer %v status for condition", gs.Name))
+			errs <- errors.Wrapf(err, "error updating GameServer %v status for condition", gs.Name)
 			return
 		}
-		updateGameServerSpec(gsSet, gs)
-		gs, err = c.gameServerGetter.GameServers(gs.Namespace).Update(gs)
+		updateGameServerSpec(gsSet, gsCopy)
+		gs, err = c.gameServerGetter.GameServers(gs.Namespace).Update(gsCopy)
 		if err != nil {
-			errs = append(errs, errors.Wrapf(err, "error inpalce updating GameServer: %v", gs.Name))
+			errs <- errors.Wrapf(err, "error inpalce updating GameServer: %v", gsCopy.Name)
 			return
 		}
-		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "SuccessfulUpdate", "Update GameServer in inpalce success %s: %v", gs.Name)
+		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "SuccessfulUpdate", "Update GameServer in place success %s: %v", gs.Name)
 
 	})
 	if len(errs) > 0 {
-		return errs[0]
+		return len(toUpdate) - len(errs), <-errs
 	}
-	return nil
-}
-
-// updateGameServerSpec update GameServer spec, include, image and resource.
-func updateGameServerSpec(gsSet *carrierv1alpha1.GameServerSet, gs *carrierv1alpha1.GameServer) {
-	var image string
-	var resources corev1.ResourceRequirements
-	var env []corev1.EnvVar
-	gs.Labels[util.GameServerHash] = gsSet.Labels[util.GameServerHash]
-	for _, container := range gsSet.Spec.Template.Spec.Template.Spec.Containers {
-		if container.Name != util.GameServerContainerName {
-			continue
-		}
-		image = container.Image
-		resources = container.Resources
-		env = container.Env
-	}
-	for i, container := range gs.Spec.Template.Spec.Containers {
-		if container.Name != util.GameServerContainerName {
-			continue
-		}
-		gs.Spec.Template.Spec.Containers[i].Image = image
-		gs.Spec.Template.Spec.Containers[i].Resources = resources
-		gs.Spec.Template.Spec.Containers[i].Env = env
-	}
-	gs.Spec.Constraints = nil
-	gameservers.SetInPlaceUpdatingStatus(gs, "false")
+	return len(toUpdate), nil
 }
 
 // createGameServers adds diff more GameServers to the set
@@ -562,10 +559,7 @@ func (c *Controller) createGameServers(gsSet *carrierv1alpha1.GameServerSet, cou
 		}
 		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "SuccessfulCreate", "Created GameServer : %s", newGS.Name)
 	})
-	if len(errs) > 0 {
-		return errs[0]
-	}
-	return nil
+	return utilerrors.NewAggregate(errs)
 }
 
 func (c *Controller) deleteGameServers(gsSet *carrierv1alpha1.GameServerSet, toDelete []*carrierv1alpha1.GameServer) error {
@@ -584,10 +578,7 @@ func (c *Controller) deleteGameServers(gsSet *carrierv1alpha1.GameServerSet, toD
 
 		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "SuccessfulDelete", "Deleted GameServer in state %s: %v", gs.Status.State, gs.Name)
 	})
-	if len(errs) > 0 {
-		return errs[0]
-	}
-	return nil
+	return utilerrors.NewAggregate(errs)
 }
 
 type opt func(g *carrierv1alpha1.GameServer)
@@ -612,17 +603,14 @@ func (c *Controller) markGameServersOutOfService(gsSet *carrierv1alpha1.GameServ
 			opt(gsCopy)
 		}
 		gameservers.AddNotInServiceConstraint(gsCopy)
-		_, err := c.gameServerGetter.GameServers(gsCopy.Namespace).Update(gsCopy)
+		gsCopy, err := c.gameServerGetter.GameServers(gsCopy.Namespace).Update(gsCopy)
 		if err != nil {
 			errs = append(errs, errors.Wrapf(err, "error updating GameServer %s to not in service", gs.Name))
 			return
 		}
 		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "Successful Mark ", "Mark GameServer not in service: %v", gs.Name)
 	})
-	if len(errs) > 0 {
-		return errs[0]
-	}
-	return nil
+	return utilerrors.NewAggregate(errs)
 }
 
 // syncGameServerSetStatus synchronises the GameServerSet State with active GameServer counts
@@ -669,14 +657,30 @@ func (c *Controller) patchGameServerIfChanged(gsSet *carrierv1alpha1.GameServerS
 	return gsSetCopy, nil
 }
 
-// markCandidateGameServers mark GameServer to be deleted
-func (c *Controller) markCandidateGameServers(gsSet *carrierv1alpha1.GameServerSet,
-	candidates []*carrierv1alpha1.GameServer) error {
-	if err := c.markGameServersOutOfService(gsSet, candidates); err != nil {
-		klog.Errorf("error marking game servers out of service: %v", err)
-		return err
+// updateGameServerSpec update GameServer spec, include, image and resource.
+func updateGameServerSpec(gsSet *carrierv1alpha1.GameServerSet, gs *carrierv1alpha1.GameServer) {
+	var image string
+	var resources corev1.ResourceRequirements
+	var env []corev1.EnvVar
+	gs.Labels[util.GameServerHash] = gsSet.Labels[util.GameServerHash]
+	for _, container := range gsSet.Spec.Template.Spec.Template.Spec.Containers {
+		if container.Name != util.GameServerContainerName {
+			continue
+		}
+		image = container.Image
+		resources = container.Resources
+		env = container.Env
 	}
-	return nil
+	for i, container := range gs.Spec.Template.Spec.Containers {
+		if container.Name != util.GameServerContainerName {
+			continue
+		}
+		gs.Spec.Template.Spec.Containers[i].Image = image
+		gs.Spec.Template.Spec.Containers[i].Resources = resources
+		gs.Spec.Template.Spec.Containers[i].Env = env
+	}
+	gs.Spec.Constraints = nil
+	gameservers.SetInPlaceUpdatingStatus(gs, "false")
 }
 
 // computeStatus computes the status of the GameServerSet.
@@ -730,16 +734,6 @@ func classifyGameServers(toDelete []*carrierv1alpha1.GameServer) (
 	// benefit for sort
 	deletables = append(notReadys, deletables...)
 	return
-}
-
-func gameServerOutOfServiceCount(gsList []*carrierv1alpha1.GameServer) int {
-	count := 0
-	for _, gs := range gsList {
-		if gameservers.IsOutOfService(gs) {
-			count++
-		}
-	}
-	return count
 }
 
 func sortGameServers(potentialDeletions []*carrierv1alpha1.GameServer, strategy carrierv1alpha1.SchedulingStrategy, counter *Counter) []*carrierv1alpha1.GameServer {
