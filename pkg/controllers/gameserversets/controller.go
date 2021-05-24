@@ -290,7 +290,7 @@ func (c *Controller) manageReplicas(key string, list []*carrierv1alpha1.GameServ
 	}
 	var toDeletes, candidates, runnings []*carrierv1alpha1.GameServer
 	if len(toDeleteList) > 0 {
-		toDeletes, candidates, runnings = classifyGameServers(toDeleteList)
+		toDeletes, candidates, runnings = classifyGameServers(toDeleteList, false)
 		// GameServers can be deleted directly.
 		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "ToDelete", "Created GameServer: %+v, can delete: %v", len(list), len(toDeleteList))
 		klog.Infof("toDeleteList toDeletes %v, candidates %v, runnings %v",
@@ -353,8 +353,14 @@ func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error
 	}
 	diff := desired - len(newGameServers)
 	updatedCount := GetGameServerSetInplaceUpdateStatus(gsSet)
-	if diff <= 0 || updatedCount == int32(desired) {
+	if diff <= 0 || updatedCount >= int32(desired) {
 		klog.V(4).Infof("desired replicas satisfied, desired: %v, new version: %v", diff, len(newGameServers))
+		// scale up when inplace updating
+		if len(newGameServers) > int(updatedCount) {
+			gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = strconv.Itoa(len(newGameServers))
+			_, err = c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(gsSet)
+			return err
+		}
 		return nil
 	}
 	// two steps of GameServer:
@@ -362,7 +368,7 @@ func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error
 	// 2. Update image, remove annotation
 
 	// update game servers
-	canUpdates, waitings, runnings := classifyGameServers(oldGameServers)
+	canUpdates, waitings, runnings := classifyGameServers(oldGameServers, true)
 	var candidates []*carrierv1alpha1.GameServer
 	candidates = append(candidates, sortGameServersByCreationTime(canUpdates)...)
 	candidates = append(candidates, sortGameServersByCreationTime(waitings)...)
@@ -383,7 +389,7 @@ func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error
 	// make sure update GameServerSet success or failed after retry.
 	// if retry failed, make sure the cache has synced.
 	err = wait.PollImmediate(50*time.Second, 1*time.Second, func() (done bool, err error) {
-		gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = strconv.Itoa(int(updated) + len(newGameServers))
+		gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = strconv.Itoa(int(updated + updatedCount))
 		_, err = c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(gsSet)
 		if err == nil {
 			return true, nil
@@ -447,7 +453,7 @@ func (c *Controller) computeReconciliationAction(gsSet *carrierv1alpha1.GameServ
 		case carrierv1alpha1.GameServerRunning:
 			// GameServer has constraint but may still have player.
 			// if excludeConstraintGS is true, we exclude this, otherwise, include.
-			if gameservers.IsOutOfService(gs) && excludeConstraintGS {
+			if gameservers.IsOutOfService(gs) && excludeConstraintGS && !gameservers.IsInPlaceUpdating(gs) {
 				klog.V(4).Infof("GameServer %v is out of service and required excludeConstraint", gs.Name)
 				continue
 			}
@@ -491,7 +497,7 @@ func (c *Controller) computeReconciliationAction(gsSet *carrierv1alpha1.GameServ
 		if scaling {
 			candidates := make([]*carrierv1alpha1.GameServer, len(potentialDeletions))
 			copy(candidates, potentialDeletions)
-			deletables, deleteCandidates, runnings := classifyGameServers(candidates)
+			deletables, deleteCandidates, runnings := classifyGameServers(candidates, false)
 			// sort running gs
 			runnings = sortGameServers(runnings, gsSet.Spec.Scheduling, counts)
 			potentialDeletions = append(deletables, deleteCandidates...)
@@ -594,18 +600,20 @@ func (c *Controller) markGameServersOutOfService(gsSet *carrierv1alpha1.GameServ
 	workqueue.ParallelizeUntil(context.Background(), maxDeletionParallelism, len(toMark), func(piece int) {
 		gs := toMark[piece]
 		gsCopy := gs.DeepCopy()
-
 		// 1. before ready, we delete directly
 		// 2. if in place updating in progress, that means already has constraints
 		// 3. gs deleting, ignore.
 		if gameservers.IsBeforeReady(gsCopy) ||
-			gameservers.IsInPlaceUpdating(gs) || gameservers.IsBeingDeleted(gs) {
+			gameservers.IsInPlaceUpdating(gsCopy) || gameservers.IsBeingDeleted(gsCopy) {
 			return
 		}
 		for _, opt := range opts {
 			opt(gsCopy)
 		}
-		gameservers.AddNotInServiceConstraint(gsCopy)
+		// if deletable exist
+		if gameservers.IsDeletableExist(gsCopy) {
+			gameservers.AddNotInServiceConstraint(gsCopy)
+		}
 		gsCopy, err := c.gameServerGetter.GameServers(gsCopy.Namespace).Update(gsCopy)
 		if err != nil {
 			errs = append(errs, errors.Wrapf(err, "error updating GameServer %s to not in service", gs.Name))
@@ -716,14 +724,18 @@ func excludeConstraints(gsSet *carrierv1alpha1.GameServerSet) bool {
 }
 
 // classifyGameServers classify the GameServers to deletables, deleteCandidates, runnings
-func classifyGameServers(toDelete []*carrierv1alpha1.GameServer) (
+func classifyGameServers(toDelete []*carrierv1alpha1.GameServer, updating bool) (
 	deletables, deleteCandidates, runnings []*carrierv1alpha1.GameServer) {
-	var notReadys []*carrierv1alpha1.GameServer
+	var inPlaceUpdatings, notReadys []*carrierv1alpha1.GameServer
 	for _, gs := range toDelete {
 		if gameservers.IsBeingDeleted(gs) {
 			continue
 		}
 		switch {
+		case gameservers.IsInPlaceUpdating(gs):
+			if updating {
+				inPlaceUpdatings = append(inPlaceUpdatings, gs)
+			}
 		case gameservers.IsBeforeReady(gs):
 			notReadys = append(notReadys, gs)
 		case gameservers.IsDeletable(gs):
@@ -735,7 +747,8 @@ func classifyGameServers(toDelete []*carrierv1alpha1.GameServer) (
 		}
 	}
 	// benefit for sort
-	deletables = append(notReadys, deletables...)
+	all := append(inPlaceUpdatings, notReadys...)
+	deletables = append(all, deletables...)
 	return
 }
 

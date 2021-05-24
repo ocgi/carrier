@@ -121,6 +121,10 @@ func deleteReady(gs *carrierv1alpha1.GameServer) bool {
 	return true
 }
 
+func IsDeletableExist(gs *carrierv1alpha1.GameServer) bool {
+	return len(gs.Spec.DeletableGates) != 0
+}
+
 // IsBeingDeleted returns true if the server is in the process of being deleted.
 func IsBeingDeleted(gs *carrierv1alpha1.GameServer) bool {
 	return !gs.DeletionTimestamp.IsZero() || gs.Status.State == carrierv1alpha1.GameServerFailed || gs.Status.State == carrierv1alpha1.GameServerExited

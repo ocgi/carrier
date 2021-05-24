@@ -41,6 +41,10 @@ func sortGameServersByPodNum(list []*carrierv1alpha1.GameServer, counter *Counte
 		if !ok {
 			return false
 		}
+		if ac == bc {
+			return a.Name < b.Name
+		}
+
 		return ac < bc
 	})
 
@@ -69,7 +73,9 @@ func sortGameServersByCreationTime(list []*carrierv1alpha1.GameServer) []*carrie
 	sort.Slice(list, func(i, j int) bool {
 		a := list[i]
 		b := list[j]
-
+		if a.CreationTimestamp.Equal(&b.CreationTimestamp) {
+			return a.Name < b.Name
+		}
 		return a.CreationTimestamp.Before(&b.CreationTimestamp)
 	})
 
