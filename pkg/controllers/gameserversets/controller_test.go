@@ -97,7 +97,7 @@ func TestControllerSyncGameServerSet(t *testing.T) {
 			if err != nil && !testCase.ignoreErr {
 				t.Error(err)
 			}
-			gameServers, err := c.gameServerGetter.GameServers(gss.Namespace).List(v1.ListOptions{LabelSelector: labels.FormatLabels(selectMap)})
+			gameServers, err := c.carrierClient.CarrierV1alpha1().GameServers(gss.Namespace).List(v1.ListOptions{LabelSelector: labels.FormatLabels(selectMap)})
 			if err != nil {
 				t.Error(err)
 			}
@@ -130,10 +130,9 @@ func fakeController(ctx context.Context) (*fake.Clientset, *gsfake.Clientset, v1
 	s.AddKnownTypes(v1alpha1.SchemeGroupVersion, &v1alpha1.GameServerSet{}, &v1alpha1.GameServerSetList{})
 
 	c := &Controller{
-		gameServerSetGetter: fakeGSClient.CarrierV1alpha1(),
+		carrierClient:       fakeGSClient,
 		gameServerSetLister: gssInformer.Lister(),
 		gameServerSetSynced: gssInformer.Informer().HasSynced,
-		gameServerGetter:    fakeGSClient.CarrierV1alpha1(),
 		gameServerLister:    gsInformer.Lister(),
 		gameServerSynced:    gsInformer.Informer().HasSynced,
 		recorder:            eventBroadcaster.NewRecorder(s, corev1.EventSource{Component: "gameserverset-controller"}),
@@ -212,9 +211,10 @@ func gsOwnered2Running() []*v1alpha1.GameServer {
 func gsOwnered2Unhealthy() []*v1alpha1.GameServer {
 	gamesvrs := gsOwnered2()
 	gamesvrs[0].Status.Conditions = []v1alpha1.GameServerCondition{{
-		Type:   v1alpha1.GameServerUnhealthy,
+		Type:   "carrier.ocgi.dev/has-no-play",
 		Status: v1alpha1.ConditionTrue,
 	}}
+	gamesvrs[0].Status.State = v1alpha1.GameServerRunning
 	gamesvrs[1].Status.State = v1alpha1.GameServerRunning
 	return gamesvrs
 }

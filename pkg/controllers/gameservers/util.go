@@ -125,13 +125,16 @@ func IsDeletableExist(gs *carrierv1alpha1.GameServer) bool {
 	return len(gs.Spec.DeletableGates) != 0
 }
 
+func IsReadinessExist(gs *carrierv1alpha1.GameServer) bool {
+	return len(gs.Spec.ReadinessGates) != 0
+}
+
 // IsBeingDeleted returns true if the server is in the process of being deleted.
 func IsBeingDeleted(gs *carrierv1alpha1.GameServer) bool {
 	return !gs.DeletionTimestamp.IsZero() || gs.Status.State == carrierv1alpha1.GameServerFailed || gs.Status.State == carrierv1alpha1.GameServerExited
 }
 
-// IsBeforeReady returns true if the GameServer Status has yet to move to or past the Ready
-// state in its lifecycle, such as Allocated or Reserved, or any of the Error/Unhealthy states
+// IsBeforeReady returns if GameServer is ready.
 func IsBeforeReady(gs *carrierv1alpha1.GameServer) bool {
 	if gs.Status.State == "" {
 		return true
