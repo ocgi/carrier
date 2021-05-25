@@ -18,6 +18,7 @@ import (
 	"sort"
 
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
+	"github.com/ocgi/carrier/pkg/util"
 )
 
 // sortGameServersByPodNum sorts the list of GameServers by which GameServers reside on the least full nodes
@@ -71,6 +72,22 @@ func sortGameServersByCreationTime(list []*carrierv1alpha1.GameServer) []*carrie
 			return a.Name < b.Name
 		}
 		return a.CreationTimestamp.Before(&b.CreationTimestamp)
+	})
+
+	return list
+}
+
+// sortGameServersByHash sorts by hash. hash same as gss means a newer version.
+func sortGameServersByHash(list []*carrierv1alpha1.GameServer, gameServerSet *carrierv1alpha1.GameServerSet) []*carrierv1alpha1.GameServer {
+	sort.Slice(list, func(i, j int) bool {
+		a := list[i]
+		b := list[j]
+		aMatch := a.Labels[util.GameServerHash] == gameServerSet.Labels[util.GameServerHash]
+		bMatch := b.Labels[util.GameServerHash] == gameServerSet.Labels[util.GameServerHash]
+		if aMatch && bMatch {
+			return a.Name < b.Name
+		}
+		return !aMatch && bMatch
 	})
 
 	return list

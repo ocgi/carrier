@@ -463,7 +463,6 @@ func addSDKServerEnv(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 func updatePodSpec(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 	var image string
 	var resources corev1.ResourceRequirements
-	var env []corev1.EnvVar
 	if pod.Labels == nil {
 		pod.Labels = make(map[string]string)
 	}
@@ -474,7 +473,6 @@ func updatePodSpec(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 		}
 		image = container.Image
 		resources = container.Resources
-		env = container.Env
 	}
 	for i, container := range pod.Spec.Containers {
 		if container.Name != util.GameServerContainerName {
@@ -494,20 +492,5 @@ func updatePodSpec(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 			pod.Spec.Containers[i].Resources.Requests[name] = quantity
 		}
 		pod.Spec.Containers[i].Resources = resources
-		for _, newEnv := range env {
-			var found bool
-			for ei, oldEnv := range pod.Spec.Containers[i].Env {
-				if oldEnv.Name != newEnv.Name {
-					continue
-				}
-				pod.Spec.Containers[i].Env[ei].Value = newEnv.Value
-				pod.Spec.Containers[i].Env[ei].ValueFrom = newEnv.ValueFrom
-				found = true
-				break
-			}
-			if !found {
-				pod.Spec.Containers[i].Env = append(pod.Spec.Containers[i].Env, newEnv)
-			}
-		}
 	}
 }

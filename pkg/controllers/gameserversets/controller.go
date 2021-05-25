@@ -268,6 +268,10 @@ func (c *Controller) syncGameServerSet(key string) error {
 	return nil
 }
 
+// manageReplicas manages replicas for GameServerSet: 1. scale up/down. 2. inplace updating.
+// scale up and inpalce updating can operate at the same time. scale down and inpalce updating is as follow:
+// if inplace updating, then scaling down. scale down the older version(for Running GameServer), do not scale down the updating one.
+// if scaling down, then inpalce updating. constraint is added, add inplace annotation directly, and go on.
 func (c *Controller) manageReplicas(key string, list []*carrierv1alpha1.GameServer, gsSet *carrierv1alpha1.GameServerSet) error {
 	klog.Infof("Current GameServer number of GameServerSet %v: %v", key, len(list))
 	gameServersToAdd, toDeleteList, isPartial := c.computeReconciliationAction(gsSet, list, c.counter,
@@ -495,6 +499,11 @@ func (c *Controller) computeReconciliationAction(gsSet *carrierv1alpha1.GameServ
 			deletables, deleteCandidates, runnings := classifyGameServers(candidates, false)
 			// sort running gs
 			runnings = sortGameServers(runnings, gsSet.Spec.Scheduling, counts)
+			// sort Running GameServers for inpalce updating.
+			inPlaceUpdating, _ := IsGameServerSetInPlaceUpdating(gsSet)
+			if inPlaceUpdating {
+				runnings = sortGameServersByHash(runnings, gsSet)
+			}
 			potentialDeletions = append(deletables, deleteCandidates...)
 			potentialDeletions = append(potentialDeletions, runnings...)
 			klog.Infof("deletables:%v, deleteCandidates:%v, runnings:%v",
@@ -701,7 +710,6 @@ func (c *Controller) patchGameServerIfChanged(gsSet *carrierv1alpha1.GameServerS
 func updateGameServerSpec(gsSet *carrierv1alpha1.GameServerSet, gs *carrierv1alpha1.GameServer) {
 	var image string
 	var resources corev1.ResourceRequirements
-	var env []corev1.EnvVar
 	gs.Labels[util.GameServerHash] = gsSet.Labels[util.GameServerHash]
 	for _, container := range gsSet.Spec.Template.Spec.Template.Spec.Containers {
 		if container.Name != util.GameServerContainerName {
@@ -709,7 +717,6 @@ func updateGameServerSpec(gsSet *carrierv1alpha1.GameServerSet, gs *carrierv1alp
 		}
 		image = container.Image
 		resources = container.Resources
-		env = container.Env
 	}
 	for i, container := range gs.Spec.Template.Spec.Containers {
 		if container.Name != util.GameServerContainerName {
@@ -717,7 +724,6 @@ func updateGameServerSpec(gsSet *carrierv1alpha1.GameServerSet, gs *carrierv1alp
 		}
 		gs.Spec.Template.Spec.Containers[i].Image = image
 		gs.Spec.Template.Spec.Containers[i].Resources = resources
-		gs.Spec.Template.Spec.Containers[i].Env = env
 	}
 	gs.Spec.Constraints = nil
 	gameservers.SetInPlaceUpdatingStatus(gs, "false")
