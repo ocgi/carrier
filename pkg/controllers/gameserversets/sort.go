@@ -17,13 +17,7 @@ package gameserversets
 import (
 	"sort"
 
-	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
-	listerv1 "github.com/ocgi/carrier/pkg/client/listers/carrier/v1alpha1"
-	"github.com/ocgi/carrier/pkg/util"
 )
 
 // sortGameServersByPodNum sorts the list of GameServers by which GameServers reside on the least full nodes
@@ -80,25 +74,4 @@ func sortGameServersByCreationTime(list []*carrierv1alpha1.GameServer) []*carrie
 	})
 
 	return list
-}
-
-// ListGameServersByGameServerSetOwner lists the GameServers for a given GameServerSet
-func ListGameServersByGameServerSetOwner(gameServerLister listerv1.GameServerLister,
-	gsSet *carrierv1alpha1.GameServerSet) ([]*carrierv1alpha1.GameServer, error) {
-	labelSelector := labels.Set{util.GameServerSetGameServerLabel: gsSet.Name}
-	if gsSet.Spec.Selector != nil && len(gsSet.Spec.Selector.MatchLabels) != 0 {
-		labelSelector = gsSet.Spec.Selector.MatchLabels
-	}
-	list, err := gameServerLister.List(labels.SelectorFromSet(labelSelector))
-	if err != nil {
-		return list, errors.Wrapf(err, "error listing GameServers for GameServerSet %s", gsSet.ObjectMeta.Name)
-	}
-	var result []*carrierv1alpha1.GameServer
-	for _, gs := range list {
-		if metav1.IsControlledBy(gs, gsSet) {
-			result = append(result, gs)
-		}
-	}
-
-	return result, nil
 }

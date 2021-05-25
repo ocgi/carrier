@@ -20,10 +20,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
+	listerv1 "github.com/ocgi/carrier/pkg/client/listers/carrier/v1alpha1"
 	"github.com/ocgi/carrier/pkg/util"
 )
 
@@ -163,4 +166,25 @@ func validFirstDigit(str string) bool {
 		return false
 	}
 	return str[0] == '-' || (str[0] == '0' && str == "0") || (str[0] >= '1' && str[0] <= '9')
+}
+
+// ListGameServersByGameServerSetOwner lists the GameServers for a given GameServerSet
+func ListGameServersByGameServerSetOwner(gameServerLister listerv1.GameServerLister,
+	gsSet *carrierv1alpha1.GameServerSet) ([]*carrierv1alpha1.GameServer, error) {
+	labelSelector := labels.Set{util.GameServerSetGameServerLabel: gsSet.Name}
+	if gsSet.Spec.Selector != nil && len(gsSet.Spec.Selector.MatchLabels) != 0 {
+		labelSelector = gsSet.Spec.Selector.MatchLabels
+	}
+	list, err := gameServerLister.List(labels.SelectorFromSet(labelSelector))
+	if err != nil {
+		return list, errors.Wrapf(err, "error listing GameServers for GameServerSet %s", gsSet.ObjectMeta.Name)
+	}
+	var result []*carrierv1alpha1.GameServer
+	for _, gs := range list {
+		if metav1.IsControlledBy(gs, gsSet) {
+			result = append(result, gs)
+		}
+	}
+
+	return result, nil
 }
