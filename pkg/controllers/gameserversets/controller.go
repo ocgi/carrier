@@ -521,7 +521,7 @@ func (c *Controller) inplaceUpdateGameServers(gsSet *carrierv1alpha1.GameServerS
 	if klog.V(5) {
 		printGameServerName(toUpdate, "GameServer to in place update:")
 	}
-	errs := make(chan error, len(toUpdate))
+	var errs []error
 	var count int32 = 0
 	workqueue.ParallelizeUntil(context.Background(), maxDeletionParallelism, len(toUpdate), func(piece int) {
 		gs := toUpdate[piece]
@@ -530,26 +530,35 @@ func (c *Controller) inplaceUpdateGameServers(gsSet *carrierv1alpha1.GameServerS
 		if !gameservers.CanInPlaceUpdating(gsCopy) {
 			return
 		}
+		// Double check GameServer status, same as `deleteGameServers`。
+		if gameservers.IsBeforeReady(gsCopy) {
+			newGS, err := c.carrierClient.CarrierV1alpha1().GameServers(gsCopy.Namespace).Get(gs.Name, metav1.GetOptions{})
+			if err != nil {
+				errs = append(errs, errors.Wrapf(err, "error checking GameServer %s status", gs.Name))
+				return
+			}
+			if gameservers.IsReady(newGS) && gameservers.IsReadinessExist(newGS) {
+				klog.Infof("GameServer %v is not before ready now, will not update", gs.Name)
+				return
+			}
+		}
 		gsCopy.Status.Conditions = nil
 		gsCopy, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).UpdateStatus(gsCopy)
 		if err != nil {
-			errs <- errors.Wrapf(err, "error updating GameServer %v status for condition", gs.Name)
+			errs = append(errs, errors.Wrapf(err, "error updating GameServer %v status for condition", gs.Name))
 			return
 		}
 		updateGameServerSpec(gsSet, gsCopy)
 		gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Update(gsCopy)
 		if err != nil {
-			errs <- errors.Wrapf(err, "error inpalce updating GameServer: %v", gsCopy.Name)
+			errs = append(errs, errors.Wrapf(err, "error inpalce updating GameServer: %v", gsCopy.Name))
 			return
 		}
 		atomic.AddInt32(&count, 1)
 		c.recorder.Eventf(gsSet, corev1.EventTypeNormal, "SuccessfulUpdate", "Update GameServer in place success %s: %v", gs.Name)
 
 	})
-	if len(errs) > 0 {
-		return count, <-errs
-	}
-	return count, nil
+	return count, utilerrors.NewAggregate(errs)
 }
 
 // createGameServers adds diff more GameServers to the set
