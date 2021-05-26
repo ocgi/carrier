@@ -25,7 +25,6 @@ import (
 	"github.com/spf13/pflag"
 	ext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/informers"
@@ -86,16 +85,11 @@ func main() {
 		klog.Fatalf("wait for crd ready timeout")
 	}
 
-	sdks := gameservers.NewSDKServerConfig(runConfig.SidecarImage, runConfig.AlwaysPullSidecarImage, resource.MustParse(runConfig.SidecarCPU),
-		resource.MustParse(runConfig.SidecarMemory))
-
 	gscontroller := gameservers.NewController(
 		client,
 		coreFactory,
 		carrierClient,
 		carrierFactory,
-		runConfig.SDKServiceAccount,
-		sdks.BuildSidecar,
 	)
 	gsscontroller := gameserversets.NewController(
 		client,

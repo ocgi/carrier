@@ -24,7 +24,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -44,15 +43,6 @@ import (
 	"github.com/ocgi/carrier/pkg/util/workerqueue"
 )
 
-const (
-	sdkserverSidecarName = "carrier-gameserver-sidecar"
-	grpcPort             = "CARRIER_SDK_GRPC_PORT"
-	httpPort             = "CARRIER_SDK_HTTP_PORT"
-)
-
-// Sidecar creates the sidecar container for a given GameServer
-type Sidecar func(*carrierv1alpha1.GameServer) corev1.Container
-
 // Controller is a the main GameServer crd controller
 type Controller struct {
 	podLister          corelisterv1.PodLister
@@ -68,8 +58,6 @@ type Controller struct {
 	carrierClient      versioned.Interface
 	stop               <-chan struct{}
 	recorder           record.EventRecorder
-	serviceAccount     string
-	sidecar            Sidecar
 }
 
 // NewController returns a new GameServer crd controller
@@ -77,7 +65,7 @@ func NewController(
 	kubeClient kubernetes.Interface,
 	kubeInformerFactory informers.SharedInformerFactory,
 	carrierClient versioned.Interface,
-	carrierInformerFactory externalversions.SharedInformerFactory, serviceAccount string, sidecar Sidecar) *Controller {
+	carrierInformerFactory externalversions.SharedInformerFactory) *Controller {
 
 	pods := kubeInformerFactory.Core().V1().Pods()
 	gameServers := carrierInformerFactory.Carrier().V1alpha1().GameServers()
@@ -93,8 +81,6 @@ func NewController(
 		nodeSynced:       nodeInformer.Informer().HasSynced,
 		kubeClient:       kubeClient,
 		carrierClient:    carrierClient,
-		serviceAccount:   serviceAccount,
-		sidecar:          sidecar,
 	}
 
 	s := scheme.Scheme
@@ -520,8 +506,7 @@ func (c *Controller) removeConstraintsFromGameServer(gs *carrierv1alpha1.GameSer
 
 // createGameServerPod creates the backing Pod for a given GameServer
 func (c *Controller) createGameServerPod(gs *carrierv1alpha1.GameServer) (*carrierv1alpha1.GameServer, error) {
-	sidecar := c.sidecar(gs)
-	pod, err := buildPod(gs, c.serviceAccount, sidecar)
+	pod, err := buildPod(gs)
 	if err != nil {
 		// this shouldn't happen, but if it does.
 		klog.Errorf("error creating pod from GameServer %v%v", gs.Namespace, gs.Name)
@@ -692,21 +677,4 @@ func getReadyContainer(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) (bool, e
 		break
 	}
 	return false, nil
-}
-
-// healthCheck formats liveness probe base on the GameServer Spec
-func healthCheck(c *corev1.Container, healthCheckPath string) {
-	if c.LivenessProbe == nil {
-		c.LivenessProbe = &corev1.Probe{
-			Handler: corev1.Handler{
-				HTTPGet: &corev1.HTTPGetAction{
-					Path: healthCheckPath,
-					Port: intstr.FromInt(8080),
-				},
-			},
-			InitialDelaySeconds: 5,
-			PeriodSeconds:       3,
-			FailureThreshold:    5,
-		}
-	}
 }

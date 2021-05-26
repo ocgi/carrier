@@ -52,11 +52,8 @@ type GameServerSpec struct {
 	// Ports are the array of ports that can be exposed via the GameServer.
 	Ports []GameServerPort `json:"ports"`
 
-	// Scheduling strategy, including "LeastAllocated, MostAllocated". Defaults to "MostAllocated".
+	// Scheduling strategy, including "LeastAllocated, MostAllocated, Default". Defaults to "MostAllocated".
 	Scheduling SchedulingStrategy `json:"scheduling,omitempty"`
-
-	// SdkServer specifies parameters for the Carrier SDK Server sidecar container.
-	SdkServer SdkServer `json:"sdkServer,omitempty"`
 
 	// Template describes the Pod that will be created for the GameServer.
 	Template corev1.PodTemplateSpec `json:"template"`
@@ -87,14 +84,15 @@ type SchedulingStrategy string
 
 const (
 	// MostAllocated strategy will allocate GameServers
-	// on Nodes with the most allocated by inject PodInterAffinity.
-	// For dynamic clusters, this Strategy will may cause less GameServers migration when clusters auto scale.
+	// on Nodes with the most allocated by inject PodAffinity.
 	MostAllocated SchedulingStrategy = "MostAllocated"
 
 	// LeastAllocated strategy will prioritise allocating GameServers
-	// on Nodes with the least allocated(scheduler default).
-	// For dynamic clusters, this Strategy will may cause more GameServers migration when clusters auto scale.
+	// on Nodes with the most allocated by inject PodAntiAffinity
 	LeastAllocated SchedulingStrategy = "LeastAllocated"
+
+	// Default will use scheduler default policy
+	Default SchedulingStrategy = "Default"
 )
 
 // PortPolicy is the port policy for the GameServer
@@ -135,30 +133,6 @@ type PortRange struct {
 	MinPort int32 `json:"minPort"`
 	// MaxPort is the end of the range, inclusive.
 	MaxPort int32 `json:"maxPort"`
-}
-
-// SdkServerLogLevel is the log level for SDK server (sidecar) logs.
-type SdkServerLogLevel string
-
-const (
-	// SdkServerLogLevelInfo will cause the SDK server to output all messages except for debug messages.
-	SdkServerLogLevelInfo SdkServerLogLevel = "Info"
-	// SdkServerLogLevelDebug will cause the SDK server to output all messages including debug messages.
-	SdkServerLogLevelDebug SdkServerLogLevel = "Debug"
-	// SdkServerLogLevelError will cause the SDK server to only output error messages.
-	SdkServerLogLevelError SdkServerLogLevel = "Error"
-)
-
-// SdkServer specifies parameters for the SDK Server sidecar container.
-type SdkServer struct {
-	// LogLevel for SDK server (sidecar) logs. Defaults to "Info".
-	LogLevel SdkServerLogLevel `json:"logLevel,omitempty"`
-	// GRPCPort is the port on which the SDK Server binds the gRPC server to accept incoming connections.
-	GRPCPort int32 `json:"grpcPort,omitempty"`
-	// HTTPPort is the port on which the SDK Server binds the HTTP gRPC gateway server to accept incoming connections.
-	HTTPPort int32 `json:"httpPort,omitempty"`
-	// HealthCheckEnabled describe if health check is enabled.
-	HealthCheckEnabled *bool `json:"healthCheckEnabled,omitempty"`
 }
 
 // ConstraintType describes the constraint name
@@ -213,20 +187,7 @@ type GameServerStatus struct {
 // GameServerConditionType is a valid value for GameServerCondition.Type
 type GameServerConditionType string
 
-// These are valid conditions of GameServer.
-const (
-	// GameServerReady means the server is able to service request.
-	GameServerReady GameServerConditionType = "Ready"
-	// GameServerHasPlayer means has player on the server, and can not be deleted by the controller.
-	GameServerHasPlayer GameServerConditionType = "HasPlayer"
-	// GameServerRetired means the server will not service new request, and can be deleted by the controller.
-	GameServerRetired GameServerConditionType = "Retired"
-	// GameServerFilled means the server run out of all resource, and will not accept more players.
-	GameServerFilled GameServerConditionType = "Filled"
-	// GameServerUnhealthy is when the GameServer has failed its health checks.
-	GameServerUnhealthy GameServerConditionType = "Unhealthy"
-)
-
+// ConditionStatus includes True or False
 type ConditionStatus string
 
 // These are valid condition statuses. "ConditionTrue" means a resource is in the condition.

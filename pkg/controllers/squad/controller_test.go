@@ -228,11 +228,6 @@ func newSquad(name string, replicas int, revisionHistoryLimit *int32, maxSurge, 
 							ContainerPort: func() *int32 { i := int32(7654); return &i }(),
 						},
 					},
-					SdkServer: carrierv1alpha1.SdkServer{
-						LogLevel: carrierv1alpha1.SdkServerLogLevelInfo,
-						GRPCPort: int32(9020),
-						HTTPPort: int32(9021),
-					},
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
 							Containers: []corev1.Container{

@@ -15,7 +15,6 @@
 package gameservers
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -52,20 +51,6 @@ func applySpecDefaults(gs *carrierv1alpha1.GameServer) {
 		applyPortDefaults(gss)
 	}
 	applySchedulingDefaults(gss)
-	applySdkServerDefaults(gss)
-}
-
-// applySdkServerDefaults applies the default log level ("Info") for the sidecar
-func applySdkServerDefaults(gss *carrierv1alpha1.GameServerSpec) {
-	if gss.SdkServer.LogLevel == "" {
-		gss.SdkServer.LogLevel = carrierv1alpha1.SdkServerLogLevelInfo
-	}
-	if gss.SdkServer.GRPCPort == 0 {
-		gss.SdkServer.GRPCPort = 9020
-	}
-	if gss.SdkServer.HTTPPort == 0 {
-		gss.SdkServer.HTTPPort = 9021
-	}
 }
 
 // applyStatusDefaults applies Status defaults
@@ -208,30 +193,19 @@ func SetInPlaceUpdatingStatus(gs *carrierv1alpha1.GameServer, status string) {
 	gs.Annotations[util.GameServerInPlaceUpdatingAnnotation] = status
 }
 
-// ApplyToPodContainer applies func(v1.Container) to the specified container in the pod.
-// Returns an error if the container is not found.
-func ApplyToPodContainer(pod *corev1.Pod, containerName string, f func(corev1.Container) corev1.Container) error {
-	for i, c := range pod.Spec.Containers {
-		if c.Name == containerName {
-			pod.Spec.Containers[i] = f(c)
-			return nil
-		}
-	}
-	return errors.Errorf("failed to find container named %s in pod spec", containerName)
-}
-
-// buildPod creates a new Pod from the PodTemplateSpec
-// attached to the GameServer resource
-func buildPod(gs *carrierv1alpha1.GameServer, sa string, sidecars ...corev1.Container) (*corev1.Pod, error) {
+// buildPod build pod according to GameServerSpec
+func buildPod(gs *carrierv1alpha1.GameServer) (*corev1.Pod, error) {
 	pod := &corev1.Pod{
-		ObjectMeta: *gs.Spec.Template.ObjectMeta.DeepCopy(),
-		Spec:       *gs.Spec.Template.Spec.DeepCopy(),
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gs.Name,
+			Namespace: gs.Namespace,
+		},
+		Spec: *gs.Spec.Template.Spec.DeepCopy(),
 	}
 
 	podObjectMeta(gs, pod)
 	if isHostPortNetwork(&gs.Spec) {
-		i, gsContainer, err := FindGameServerContainer(gs)
-		// this shouldn't happen, but if it does.
+		i, gsContainer, err := FindContainer(&gs.Spec, util.GameServerContainerName)
 		if err != nil {
 			return pod, err
 		}
@@ -257,7 +231,6 @@ func buildPod(gs *carrierv1alpha1.GameServer, sa string, sidecars ...corev1.Cont
 			pod.Spec.Containers[i] = gsContainer
 		}
 	}
-	pod.Spec.Containers = append(pod.Spec.Containers, sidecars...)
 	if pod.Annotations == nil {
 		pod.Annotations = map[string]string{}
 	}
@@ -265,41 +238,45 @@ func buildPod(gs *carrierv1alpha1.GameServer, sa string, sidecars ...corev1.Cont
 		pod.Labels = map[string]string{}
 	}
 	injectPodScheduling(gs, pod)
-	// if the service account is not set, then you are in the "opinionated"
-	// mode. If the user sets the service account, we assume they know what they are
-	// doing, and don't disable the GameServer container.
-	if pod.Spec.ServiceAccountName == "" {
-		pod.Spec.ServiceAccountName = sa
-		err := DisableServiceAccount(pod)
-		if err != nil {
-			return pod, err
-		}
-	}
-	addSDKServerEnv(gs, pod)
 	return pod, nil
 }
 
 // podObjectMeta configures the pod ObjectMeta details
 func podObjectMeta(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
-	pod.GenerateName = ""
-	pod.ResourceVersion = ""
-	pod.UID = ""
-	pod.Name = gs.Name
-	pod.Namespace = gs.Namespace
-	// pod annotations and labels will be overridden by gs if they have some keys
 	pod.Labels = merge(pod.Labels, gs.Labels)
 	pod.Annotations = merge(pod.Annotations, gs.Annotations)
 	pod.Labels[util.RoleLabel] = util.GameServerLabelRole
 	pod.Labels[util.GameServerPodLabel] = gs.Name
 	ref := metav1.NewControllerRef(gs, carrierv1alpha1.SchemeGroupVersion.WithKind("GameServer"))
 	pod.OwnerReferences = append(pod.OwnerReferences, *ref)
-
 	// Add Carrier version into Pod Annotations
 	pod.Annotations[carrier.GroupName] = carrierv1alpha1.SchemeGroupVersion.Version
 }
 
-// injectPodScheduling helps inject podAffinity to podSpec if the policy is `MostAllocated`
+// injectPodScheduling helps inject podAffinity/PodAntiAffinity to podSpec if the policy is `Most/LeastAllocated`
 func injectPodScheduling(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
+	if gs.Spec.Scheduling == carrierv1alpha1.Default {
+		return
+	}
+	if gs.Spec.Scheduling == carrierv1alpha1.LeastAllocated {
+		if pod.Spec.Affinity == nil {
+			pod.Spec.Affinity = &corev1.Affinity{}
+		}
+		if pod.Spec.Affinity.PodAntiAffinity == nil {
+			pod.Spec.Affinity.PodAntiAffinity = &corev1.PodAntiAffinity{}
+		}
+
+		term := corev1.WeightedPodAffinityTerm{
+			Weight: 100,
+			PodAffinityTerm: corev1.PodAffinityTerm{
+				TopologyKey:   "kubernetes.io/hostname",
+				LabelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{util.RoleLabel: util.GameServerLabelRole}},
+			},
+		}
+
+		pod.Spec.Affinity.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(pod.Spec.Affinity.PodAntiAffinity.
+			PreferredDuringSchedulingIgnoredDuringExecution, term)
+	}
 	if gs.Spec.Scheduling == carrierv1alpha1.MostAllocated {
 		if pod.Spec.Affinity == nil {
 			pod.Spec.Affinity = &corev1.Affinity{}
@@ -316,22 +293,10 @@ func injectPodScheduling(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 			},
 		}
 
-		pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution, term)
+		pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(pod.Spec.Affinity.PodAffinity.
+			PreferredDuringSchedulingIgnoredDuringExecution, term)
+		return
 	}
-}
-
-// DisableServiceAccount disables the service account for the GameServer container
-func DisableServiceAccount(pod *corev1.Pod) error {
-	// GameServers don't get access to the k8s api.
-	emptyVol := corev1.Volume{Name: "empty", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}}
-	pod.Spec.Volumes = append(pod.Spec.Volumes, emptyVol)
-	mount := corev1.VolumeMount{MountPath: "/var/run/secrets/kubernetes.io/serviceaccount", Name: emptyVol.Name, ReadOnly: true}
-
-	return ApplyToPodContainer(pod, util.GameServerContainerName, func(c corev1.Container) corev1.Container {
-		c.VolumeMounts = append(c.VolumeMounts, mount)
-
-		return c
-	})
 }
 
 // isGameServerPod returns if this Pod is a Pod that comes from a GameServer
@@ -389,13 +354,6 @@ func FindContainer(gss *carrierv1alpha1.GameServerSpec, name string) (int, corev
 	return -1, corev1.Container{}, errors.Errorf("Could not find a container named %s", name)
 }
 
-// FindGameServerContainer returns the container that is specified in
-// gameServer.Spec.Container. Returns the index and the value.
-// Returns an error if not found
-func FindGameServerContainer(gs *carrierv1alpha1.GameServer) (int, corev1.Container, error) {
-	return FindContainer(&gs.Spec, util.GameServerContainerName)
-}
-
 // merge helps merge labels or annotations
 func merge(one, two map[string]string) map[string]string {
 	three := make(map[string]string)
@@ -432,30 +390,6 @@ func NotInServiceConstraint() carrierv1alpha1.Constraint {
 		Effective: &effective,
 		Message:   "Carrier controller mark this game server as not in service",
 		TimeAdded: &now,
-	}
-}
-
-func addSDKServerEnv(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
-	var env []corev1.EnvVar
-	if gs.Spec.SdkServer.GRPCPort != 0 {
-		env = append(env, corev1.EnvVar{
-			Name:  grpcPort,
-			Value: strconv.Itoa(int(gs.Spec.SdkServer.GRPCPort)),
-		})
-	}
-	if gs.Spec.SdkServer.HTTPPort != 0 {
-		env = append(env, corev1.EnvVar{
-			Name:  httpPort,
-			Value: strconv.Itoa(int(gs.Spec.SdkServer.HTTPPort)),
-		})
-	}
-	for i := range pod.Spec.Containers {
-		c := &pod.Spec.Containers[i]
-		if c.Name == sdkserverSidecarName {
-			continue
-		}
-		c.Env = append(c.Env, env...)
-		pod.Spec.Containers[i] = *c
 	}
 }
 
