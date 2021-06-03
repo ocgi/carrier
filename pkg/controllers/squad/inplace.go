@@ -59,8 +59,8 @@ func (c *Controller) rolloutInplace(squad *carrierv1alpha1.Squad, gsSetList []*c
 	}
 	// update GameServerSet
 	SetGameServerSetInplaceUpdateAnnotations(newGSSet, squad)
-	SetGameServerTemplateHashLabels(newGSSet)
 	newGSSet.Spec.Template.Spec.Template.Spec = *squad.Spec.Template.Spec.Template.Spec.DeepCopy()
+	SetGameServerTemplateHashLabels(newGSSet)
 	_, err = c.gameServerSetGetter.GameServerSets(newGSSet.Namespace).Update(newGSSet)
 	if err != nil {
 		return err

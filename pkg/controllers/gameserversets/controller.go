@@ -345,12 +345,14 @@ func (c *Controller) manageReplicas(key string, list []*carrierv1alpha1.GameServ
 // 1. update GameServer to `out of service`, add `in progress`
 // 2. update GameServer image, remove `in progress`
 // 3. update GameServerSet updated replicas. This step must
-//    ensure success or failed but ca\che synced.
+//    ensure success or failed but cache synced.
 func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error {
 	inPlaceUpdating, desired := IsGameServerSetInPlaceUpdating(gsSet)
 	if !inPlaceUpdating {
 		return nil
 	}
+	klog.V(4).Infof("desired threshold : %v", gsSet.Annotations[util.GameServerInPlaceUpdateAnnotation])
+	klog.V(4).Infof("desired gsSet hash: %v", gsSet.Labels[util.GameServerHash])
 	// get servers from lister, may exist race
 	oldGameServers, newGameServers, err := c.getOldAndNewReplicas(gsSet)
 	if err != nil {
@@ -359,8 +361,9 @@ func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error
 	}
 	diff := desired - len(newGameServers)
 	updatedCount := GetGameServerSetInplaceUpdateStatus(gsSet)
+	klog.V(4).Infof("desired replicas satisfied, desired: %v, diff: %v, new version: %v, updated according to ann: %v",
+		desired, diff, len(newGameServers), updatedCount)
 	if diff <= 0 || updatedCount >= int32(desired) {
-		klog.V(4).Infof("desired replicas satisfied, desired: %v, new version: %v", diff, len(newGameServers))
 		// scale up when inplace updating
 		if len(newGameServers) > int(updatedCount) {
 			gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = strconv.Itoa(len(newGameServers))
