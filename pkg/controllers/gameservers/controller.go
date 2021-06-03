@@ -327,11 +327,11 @@ func (c *Controller) syncGameServer(key string) error {
 		klog.Errorf("Failed sync GameServer: %v deletion time, error: %v", key, err)
 		return err
 	}
-	if gs, err = c.syncGameServerStartingState(gsCopy); err != nil {
+	if gs, err = c.syncGameServerStartingState(gs); err != nil {
 		klog.Errorf("Failed sync GameServer: %v starting state, error: %v", key, err)
 		return err
 	}
-	if gs, err = c.syncGameServerRunningState(gsCopy); err != nil {
+	if gs, err = c.syncGameServerRunningState(gs); err != nil {
 		klog.Errorf("Failed sync GameServer: %v running state, error: %v", key, err)
 		return err
 	}

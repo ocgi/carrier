@@ -284,7 +284,6 @@ func (c *Controller) syncGameServerSet(key string) error {
 	if err != nil {
 		return err
 	}
-	klog.V(3).Infof("GameServerSet %v remove annotation success", gsSet.Name)
 	gsSet, err = c.syncGameServerSetStatus(gsSet, list)
 	if err != nil {
 		klog.Error(err)

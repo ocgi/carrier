@@ -15,5 +15,6 @@
 // +k8s:deepcopy-gen=package,register
 
 // Package v1alpha1 is the v1alpha1 version of the API.
+// GameServer and GameServerSet crd are designed based on Google agones.
 // +groupName=carrier.ocgi.dev
 package v1alpha1
