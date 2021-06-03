@@ -27,7 +27,6 @@ all: test build
 build: build-controller
 
 build-controller:
-	mkdir -p bin
 	go fmt ./pkg/...
 	go vet ./pkg/...
 	GOOS=linux CGO_ENABLED=0 go build -ldflags "-X '$(VERSION_KEY)=$(VERSION)' -X '$(COMMIT_KEY)=$(GIT_COMMIT)' -X '$(BUILDTIME_KEY)=$(BUILD_TIME)'" -o \
