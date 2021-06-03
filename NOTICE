@@ -1,0 +1,13 @@
+OCGI
+Copyright 2020-2021 The OCGI Authors.
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+OCGI reused the codes from the agones project to re-design the GameServer and GameServerSet CRD.
+
+This product includes software from the agones project (Apache 2.0)
+https://github.com/googleforgames/agones
+
+This product includes software from the Kubernetes project (Apache 2.0)
+https://github.com/kubernetes/kubernetes
