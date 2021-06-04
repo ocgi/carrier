@@ -30,31 +30,25 @@ import (
 	"github.com/ocgi/carrier/pkg/util"
 )
 
-// GameServer returns a single GameServer derived
-// from the GameServer template
+// GameServer build a GameServerFrom GameServerSet
 func GameServer(gsSet *carrierv1alpha1.GameServerSet) *carrierv1alpha1.GameServer {
 	gs := &carrierv1alpha1.GameServer{
-		ObjectMeta: *gsSet.Spec.Template.ObjectMeta.DeepCopy(),
-		Spec:       *gsSet.Spec.Template.Spec.DeepCopy(),
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: gsSet.Name + "-",
+			Namespace:    gsSet.Namespace,
+			Labels:       util.Merge(gsSet.Labels, gsSet.Spec.Template.Labels),
+			Annotations:  util.Merge(gsSet.Annotations, gsSet.Spec.Template.Annotations),
+		},
+		Spec: *gsSet.Spec.Template.Spec.DeepCopy(),
 	}
 
 	gs.Spec.Scheduling = gsSet.Spec.Scheduling
-
-	// Switch to GenerateName, so that we always get a Unique name for the GameServer, and there
-	// can be no collisions
-	gs.GenerateName = gsSet.Name + "-"
-	gs.Name = ""
-	gs.Namespace = gsSet.Namespace
-	gs.ResourceVersion = ""
-	gs.UID = ""
-
 	ref := metav1.NewControllerRef(gsSet, carrierv1alpha1.SchemeGroupVersion.WithKind("GameServerSet"))
 	gs.OwnerReferences = append(gs.OwnerReferences, *ref)
 
 	if gs.Labels == nil {
-		gs.Labels = make(map[string]string, 2)
+		gs.Labels = make(map[string]string)
 	}
-
 	gs.Labels[util.GameServerSetLabelKey] = gsSet.Name
 	gs.Labels[util.SquadNameLabelKey] = gsSet.Labels[util.SquadNameLabelKey]
 	if gs.Annotations == nil {
