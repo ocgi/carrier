@@ -18,7 +18,7 @@ package fake
 
 import (
 	v1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
-	v1beta1 "k8s.io/api/extensions/v1beta1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -139,23 +139,23 @@ func (c *FakeSquads) Patch(name string, pt types.PatchType, data []byte, subreso
 }
 
 // GetScale takes name of the squad, and returns the corresponding scale object, and an error if there is any.
-func (c *FakeSquads) GetScale(squadName string, options v1.GetOptions) (result *v1beta1.Scale, err error) {
+func (c *FakeSquads) GetScale(squadName string, options v1.GetOptions) (result *autoscalingv1.Scale, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetSubresourceAction(squadsResource, c.ns, "scale", squadName), &v1beta1.Scale{})
+		Invokes(testing.NewGetSubresourceAction(squadsResource, c.ns, "scale", squadName), &autoscalingv1.Scale{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1beta1.Scale), err
+	return obj.(*autoscalingv1.Scale), err
 }
 
 // UpdateScale takes the representation of a scale and updates it. Returns the server's representation of the scale, and an error, if there is any.
-func (c *FakeSquads) UpdateScale(squadName string, scale *v1beta1.Scale) (result *v1beta1.Scale, err error) {
+func (c *FakeSquads) UpdateScale(squadName string, scale *autoscalingv1.Scale) (result *autoscalingv1.Scale, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(squadsResource, "scale", c.ns, scale), &v1beta1.Scale{})
+		Invokes(testing.NewUpdateSubresourceAction(squadsResource, "scale", c.ns, scale), &autoscalingv1.Scale{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1beta1.Scale), err
+	return obj.(*autoscalingv1.Scale), err
 }

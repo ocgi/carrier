@@ -21,7 +21,7 @@ import (
 
 	v1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
 	scheme "github.com/ocgi/carrier/pkg/client/clientset/versioned/scheme"
-	v1beta1 "k8s.io/api/extensions/v1beta1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -45,8 +45,8 @@ type SquadInterface interface {
 	List(opts v1.ListOptions) (*v1alpha1.SquadList, error)
 	Watch(opts v1.ListOptions) (watch.Interface, error)
 	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.Squad, err error)
-	GetScale(squadName string, options v1.GetOptions) (*v1beta1.Scale, error)
-	UpdateScale(squadName string, scale *v1beta1.Scale) (*v1beta1.Scale, error)
+	GetScale(squadName string, options v1.GetOptions) (*autoscalingv1.Scale, error)
+	UpdateScale(squadName string, scale *autoscalingv1.Scale) (*autoscalingv1.Scale, error)
 
 	SquadExpansion
 }
@@ -192,9 +192,9 @@ func (c *squads) Patch(name string, pt types.PatchType, data []byte, subresource
 	return
 }
 
-// GetScale takes name of the squad, and returns the corresponding v1beta1.Scale object, and an error if there is any.
-func (c *squads) GetScale(squadName string, options v1.GetOptions) (result *v1beta1.Scale, err error) {
-	result = &v1beta1.Scale{}
+// GetScale takes name of the squad, and returns the corresponding autoscalingv1.Scale object, and an error if there is any.
+func (c *squads) GetScale(squadName string, options v1.GetOptions) (result *autoscalingv1.Scale, err error) {
+	result = &autoscalingv1.Scale{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("squads").
@@ -207,8 +207,8 @@ func (c *squads) GetScale(squadName string, options v1.GetOptions) (result *v1be
 }
 
 // UpdateScale takes the top resource name and the representation of a scale and updates it. Returns the server's representation of the scale, and an error, if there is any.
-func (c *squads) UpdateScale(squadName string, scale *v1beta1.Scale) (result *v1beta1.Scale, err error) {
-	result = &v1beta1.Scale{}
+func (c *squads) UpdateScale(squadName string, scale *autoscalingv1.Scale) (result *autoscalingv1.Scale, err error) {
+	result = &autoscalingv1.Scale{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("squads").
