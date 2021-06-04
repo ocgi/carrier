@@ -90,6 +90,8 @@ func main() {
 		coreFactory,
 		carrierClient,
 		carrierFactory,
+		runConfig.MinPort,
+		runConfig.MaxPort,
 	)
 	gsscontroller := gameserversets.NewController(
 		client,

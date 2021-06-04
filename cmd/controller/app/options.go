@@ -35,6 +35,8 @@ type RunOptions struct {
 	ElectionResourceLock string
 
 	ShowVersion bool
+	MinPort     int
+	MaxPort     int
 }
 
 func NewServerRunOptions() *RunOptions {
@@ -62,6 +64,8 @@ func (s *RunOptions) addElectionFlags() {
 
 func (s *RunOptions) addControllerFlags() {
 	pflag.BoolVar(&s.ShowVersion, "version", s.ShowVersion, "version of carrier.")
+	pflag.IntVar(&s.MinPort, "min-port", 10000, "min port for dynamic allocation")
+	pflag.IntVar(&s.MaxPort, "max-port", 20000, "max port for dynamic allocation")
 }
 
 func (s *RunOptions) NewConfig() (*rest.Config, error) {

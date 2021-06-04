@@ -20,6 +20,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 
 	"github.com/ocgi/carrier/pkg/apis/carrier"
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
@@ -56,7 +57,7 @@ func applyPortDefaults(gss *carrierv1alpha1.GameServerSpec) {
 	for i, p := range gss.Ports {
 		// basic spec
 		if p.PortPolicy == "" {
-			gss.Ports[i].PortPolicy = carrierv1alpha1.Dynamic
+			gss.Ports[i].PortPolicy = carrierv1alpha1.LoaderBalancer
 		}
 
 		if p.Protocol == "" {
@@ -157,6 +158,14 @@ func IsInPlaceUpdating(gs *carrierv1alpha1.GameServer) bool {
 	return gs.Annotations[util.GameServerInPlaceUpdatingAnnotation] == "true"
 }
 
+// IsDynamicPortAllocated checks if ports allocated
+func IsDynamicPortAllocated(gs *carrierv1alpha1.GameServer) bool {
+	if len(gs.Annotations) == 0 {
+		return false
+	}
+	return gs.Annotations[util.GameServerDynamicPortAllocated] == "true"
+}
+
 // CanInPlaceUpdating checks if a GameServer can inplace updating
 func CanInPlaceUpdating(gs *carrierv1alpha1.GameServer) bool {
 	if IsBeingDeleted(gs) {
@@ -187,33 +196,50 @@ func buildPod(gs *carrierv1alpha1.GameServer) (*corev1.Pod, error) {
 	}
 
 	podObjectMeta(gs, pod)
-	if isHostPortNetwork(&gs.Spec) {
+	if isHostPortNetwork(&gs.Spec) || len(findPorts(gs)) > 0 {
 		i, gsContainer, err := FindContainer(&gs.Spec, util.GameServerContainerName)
 		if err != nil {
 			return pod, err
 		}
+		klog.V(5).Infof("Found desired container %v", i)
 		for _, p := range gs.Spec.Ports {
 			if p.ContainerPort != nil {
 				cp := corev1.ContainerPort{
 					ContainerPort: *p.ContainerPort,
-					Protocol:      p.Protocol,
+					HostPort:      *p.HostPort,
 				}
-				cp.HostPort = *p.HostPort
+				if p.Protocol == "TCPUDP" {
+					cp.Protocol = corev1.ProtocolTCP
+					cpUTP := cp.DeepCopy()
+					cpUTP.Protocol = corev1.ProtocolUDP
+					gsContainer.Ports = append(gsContainer.Ports, *cpUTP)
+				} else {
+					cp.Protocol = p.Protocol
+				}
 				gsContainer.Ports = append(gsContainer.Ports, cp)
 			}
 			if p.ContainerPortRange != nil && p.HostPortRange != nil {
 				for idx := p.ContainerPortRange.MinPort; idx <= p.ContainerPortRange.MaxPort; idx++ {
 					cp := corev1.ContainerPort{
 						ContainerPort: idx,
-						Protocol:      p.Protocol,
+						HostPort:      p.HostPortRange.MinPort + (p.HostPortRange.MinPort - idx),
 					}
-					cp.HostPort = p.HostPortRange.MinPort + (p.HostPortRange.MinPort - idx)
+					if p.Protocol == "TCPUDP" {
+						cp.Protocol = corev1.ProtocolTCP
+						cpUTP := cp.DeepCopy()
+						cpUTP.Protocol = corev1.ProtocolUDP
+						gsContainer.Ports = append(gsContainer.Ports, *cpUTP)
+					} else {
+						cp.Protocol = p.Protocol
+					}
 					gsContainer.Ports = append(gsContainer.Ports, cp)
 				}
 			}
-			pod.Spec.Containers[i] = gsContainer
 		}
+		klog.V(5).Infof("Final desired container %+v", gsContainer)
+		pod.Spec.Containers[i] = gsContainer
 	}
+
 	if pod.Annotations == nil {
 		pod.Annotations = map[string]string{}
 	}
@@ -358,6 +384,16 @@ func NotInServiceConstraint() carrierv1alpha1.Constraint {
 	}
 }
 
+// IsLoadBalancerPortExist check if a GameServer requires Load Balancer.
+func IsLoadBalancerPortExist(gs *carrierv1alpha1.GameServer) bool {
+	for _, port := range gs.Spec.Ports {
+		if port.PortPolicy == carrierv1alpha1.LoaderBalancer {
+			return true
+		}
+	}
+	return false
+}
+
 // updatePodSpec update game server spec, include, image and resource.
 func updatePodSpec(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 	var image string
@@ -391,5 +427,118 @@ func updatePodSpec(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 			pod.Spec.Containers[i].Resources.Requests[name] = quantity
 		}
 		pod.Spec.Containers[i].Resources = resources
+	}
+}
+
+func getOwner(gs *carrierv1alpha1.GameServer) string {
+	if gs.Labels[util.SquadNameLabelKey] != "" {
+		return gs.Labels[util.SquadNameLabelKey]
+	}
+	if gs.Labels[util.GameServerSetLabelKey] != "" {
+		return gs.Labels[util.GameServerSetLabelKey]
+	}
+	return string(gs.UID)
+}
+
+func findPorts(gs *carrierv1alpha1.GameServer) []int {
+	var ports []int
+	if len(gs.Spec.Ports) == 0 {
+		return ports
+	}
+	for _, port := range gs.Spec.Ports {
+		if port.PortPolicy == carrierv1alpha1.LoaderBalancer {
+			continue
+		}
+		if port.HostPort != nil {
+			ports = append(ports, int(*port.HostPort))
+		}
+		hpr := port.HostPortRange
+		if port.HostPortRange != nil {
+			for i := hpr.MinPort; i <= hpr.MaxPort; i++ {
+				ports = append(ports, int(i))
+			}
+		}
+	}
+	return ports
+}
+
+func findDynamicPortNumber(gs *carrierv1alpha1.GameServer) int {
+	count := 0
+	if len(gs.Spec.Ports) == 0 {
+		return 0
+	}
+	for _, port := range gs.Spec.Ports {
+		if port.PortPolicy != carrierv1alpha1.Dynamic {
+			continue
+		}
+		if port.ContainerPort != nil {
+			count++
+		}
+	}
+	return count
+}
+
+func findStaticPorts(gs *carrierv1alpha1.GameServer) []int {
+	var ports []int
+	if len(gs.Spec.Ports) == 0 {
+		return nil
+	}
+	for _, port := range gs.Spec.Ports {
+		if port.PortPolicy == carrierv1alpha1.Static {
+			continue
+		}
+		if port.ContainerPort != nil && port.HostPort != nil {
+			ports = append(ports, int(*port.HostPort))
+		}
+	}
+	return ports
+}
+
+const (
+	Port      = "Port"
+	PortRange = "PortRange"
+)
+
+func getAllocateType(gs *carrierv1alpha1.GameServer) string {
+	if len(gs.Spec.Ports) == 0 {
+		return ""
+	}
+	for _, port := range gs.Spec.Ports {
+		if port.PortPolicy != carrierv1alpha1.Dynamic {
+			continue
+		}
+		if port.ContainerPort != nil {
+			return Port
+		}
+		if port.ContainerPortRange != nil {
+			return PortRange
+		}
+	}
+	return ""
+}
+
+func setHostPort(gs *carrierv1alpha1.GameServer, ports []int) {
+	for i, port := range gs.Spec.Ports {
+		if port.PortPolicy != carrierv1alpha1.Dynamic {
+			continue
+		}
+		if port.ContainerPort != nil {
+			gs.Spec.Ports[i].HostPort = new(int32)
+			*gs.Spec.Ports[i].HostPort = int32(ports[i])
+		}
+	}
+}
+
+func setHostPortRange(gs *carrierv1alpha1.GameServer, ports []int) {
+	for i, port := range gs.Spec.Ports {
+		if port.PortPolicy == carrierv1alpha1.LoaderBalancer {
+			continue
+		}
+		if port.ContainerPortRange != nil {
+			gs.Spec.Ports[i].HostPortRange = &carrierv1alpha1.PortRange{
+				MinPort: int32(ports[0]),
+				MaxPort: int32(ports[len(ports)-1]),
+			}
+		}
 	}
 }

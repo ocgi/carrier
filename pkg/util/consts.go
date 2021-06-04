@@ -89,4 +89,6 @@ const (
 	GameServerInPlaceUpdatedReplicasAnnotation = "carrier.ocgi.dev/inplace-updated-replicas"
 	// GameServerInPlaceUpdatingAnnotation describes in place updateing is doning("true", false)
 	GameServerInPlaceUpdatingAnnotation = "carrier.ocgi.dev/inplace-updating"
+	// GameServerDynamicPortAllocated port allocated for dynamic policy.
+	GameServerDynamicPortAllocated = "carrier.ocgi.dev/dynamic-port-allocated"
 )

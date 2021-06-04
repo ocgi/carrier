@@ -24,6 +24,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -58,6 +59,7 @@ type Controller struct {
 	kubeClient         kubernetes.Interface
 	carrierClient      versioned.Interface
 	recorder           record.EventRecorder
+	portAllocator      Allocator
 }
 
 // NewController returns a new GameServer crd controller
@@ -65,7 +67,8 @@ func NewController(
 	kubeClient kubernetes.Interface,
 	kubeInformerFactory informers.SharedInformerFactory,
 	carrierClient versioned.Interface,
-	carrierInformerFactory externalversions.SharedInformerFactory) *Controller {
+	carrierInformerFactory externalversions.SharedInformerFactory,
+	minPort, maxPort int) *Controller {
 
 	pods := kubeInformerFactory.Core().V1().Pods()
 	gameServers := carrierInformerFactory.Carrier().V1alpha1().GameServers()
@@ -81,6 +84,7 @@ func NewController(
 		nodeSynced:       nodeInformer.Informer().HasSynced,
 		kubeClient:       kubeClient,
 		carrierClient:    carrierClient,
+		portAllocator:    NewMinMaxAllocator(minPort, maxPort),
 	}
 
 	s := scheme.Scheme
@@ -226,7 +230,6 @@ func (c *Controller) deleteGamServer(obj interface{}) {
 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %+v: %v", obj, err))
 		return
 	}
-
 	c.queue.Forget(key)
 }
 
@@ -298,10 +301,27 @@ func (c *Controller) Run(workers int, stop <-chan struct{}) error {
 		return errors.New("failed to wait for caches to sync")
 	}
 
+	c.syncPortAllocated()
+
 	go wait.Until(c.gsWorker, time.Second, stop)
 	go wait.Until(c.nodeWorker, time.Second, stop)
 	<-stop
 	return nil
+}
+
+func (c *Controller) syncPortAllocated() {
+	gsList, err := c.gameServerLister.GameServers(corev1.NamespaceAll).List(labels.Everything())
+	if err != nil {
+		klog.Fatal(err)
+	}
+	for _, gs := range gsList {
+		if gs.DeletionTimestamp != nil {
+			continue
+		}
+		gsOwnerId := getOwner(gs)
+		ports := findPorts(gs)
+		c.portAllocator.SetUsed(gsOwnerId, string(gs.UID), ports)
+	}
 }
 
 // syncGameServer reconciles GameServer status base on pod and node status.
@@ -320,6 +340,10 @@ func (c *Controller) syncGameServer(key string) error {
 			return nil
 		}
 		return errors.Wrapf(err, "error retrieving GameServer %s from namespace %s", name, namespace)
+	}
+
+	if gs.DeletionTimestamp != nil {
+		c.portAllocator.Release(getOwner(gs), string(gs.UID), findPorts(gs))
 	}
 
 	gsCopy := gs.DeepCopy()
@@ -369,11 +393,70 @@ func (c *Controller) syncGameServerDeletionTimestamp(gs *carrierv1alpha1.GameSer
 	return gs, errors.Wrap(err, "error removing finalizer for GameServer")
 }
 
+// tryAllocatePorts try to allocate port for GameServer, whose port policy is Dynamic.
+func (c *Controller) tryAllocatePorts(gs *carrierv1alpha1.GameServer) (*carrierv1alpha1.GameServer, error) {
+	if len(gs.Spec.Ports) == 0 {
+		return gs, nil
+	}
+	if IsDynamicPortAllocated(gs) {
+		return gs, nil
+	}
+	if IsLoadBalancerPortExist(gs) {
+		return gs, nil
+	}
+	allocateType := getAllocateType(gs)
+	// only allow use multi ports or directly use port range.
+	gsCopy := gs.DeepCopy()
+	var (
+		ports []int
+		err   error
+	)
+	switch allocateType {
+	case "":
+		staticPorts := findStaticPorts(gs)
+		c.portAllocator.SetUsed(getOwner(gsCopy), string(gs.UID), staticPorts)
+		return gs, nil
+	case Port:
+		number := findDynamicPortNumber(gsCopy)
+		ports, err = c.portAllocator.Allocate(getOwner(gsCopy), string(gs.UID), number, false)
+		if err != nil {
+			klog.Errorf("Failed to allocate port: %v", err)
+			return gs, err
+		}
+		setHostPort(gsCopy, ports)
+	case PortRange:
+		cpr := gs.Spec.Ports[0].ContainerPortRange
+		number := int(cpr.MaxPort - cpr.MinPort + 1)
+		ports, err = c.portAllocator.Allocate(getOwner(gsCopy), string(gs.UID), number, true)
+		if err != nil {
+			klog.Errorf("Failed to allocate port: %v", err)
+			return gs, err
+		}
+		setHostPortRange(gsCopy, ports)
+	}
+	gsCopy.Annotations[util.GameServerDynamicPortAllocated] = "true"
+	gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gsCopy.Namespace).Update(gsCopy)
+	if err == nil {
+		return gs, nil
+	}
+	c.portAllocator.Release(getOwner(gsCopy), string(gs.UID), ports)
+	klog.Errorf("Write back port to api failed: %v", err)
+	return gs, err
+}
+
 // syncGameServerStartingState checks if the GameServer is in the Creating state, and if so
 // creates a Pod for the GameServer and moves the state to Starting
 func (c *Controller) syncGameServerStartingState(gs *carrierv1alpha1.GameServer) (*carrierv1alpha1.GameServer, error) {
 	klog.V(4).Infof("Start sync start state for: %v", gs.Name)
 	if !gs.DeletionTimestamp.IsZero() {
+		return gs, nil
+	}
+	var err error
+	gs, err = c.tryAllocatePorts(gs)
+	if err != nil {
+		return gs, err
+	}
+	if !IsDynamicPortAllocated(gs) && findDynamicPortNumber(gs) > 0 {
 		return gs, nil
 	}
 	// Maybe something went wrong, and the pod was created, but the state was never moved to Starting, so let's check
@@ -523,6 +606,8 @@ func (c *Controller) createGameServerPod(gs *carrierv1alpha1.GameServer) (*carri
 			return gs, errors.Wrapf(err, "error creating Pod for GameServer %s: %v", gs.Name, err)
 		}
 	}
+	klog.V(5).Infof("Final desired container %+v", pod.Spec.Containers[0])
+	klog.V(5).Infof("Final desired container %+v", pod.Spec.Containers[1])
 	c.recorder.Event(gs, corev1.EventTypeNormal, string(gs.Status.State),
 		fmt.Sprintf("Creating pod %s", pod.Name))
 
