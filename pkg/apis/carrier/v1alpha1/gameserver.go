@@ -209,6 +209,12 @@ type GameServerCondition struct {
 	LastProbeTime metav1.Time `json:"lastProbeTime"`
 	// Last time the condition transitioned from one status to another.
 	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
+	// Message enables setting more information to a GameServer.
+	// For example:
+	// When a GameServer starts up, set number of allocatable players,
+	// then if a player connects, change the number, which makes
+	// developing a gpa webhook based on online players possible.
+	Message string `json:"message,omitempty"`
 }
 
 // LoadBalancerStatus represents the status of a load-balancer.
