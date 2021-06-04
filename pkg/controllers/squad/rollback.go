@@ -57,12 +57,14 @@ func (c *Controller) rollback(squad *carrierv1alpha1.Squad, gsSetList []*carrier
 			// no-op if the spec matches current squad's gameServerTemplate.Spec
 			performedRollback, err := c.rollbackToTemplate(squad, gsSet)
 			if performedRollback && err == nil {
-				c.emitRollbackNormalEvent(squad, fmt.Sprintf("Rolled back squad %q to revision %d", squad.Name, rollbackTo.Revision))
+				c.emitRollbackNormalEvent(squad,
+					fmt.Sprintf("Rolled back squad %q to revision %d", squad.Name, rollbackTo.Revision))
 			}
 			return err
 		}
 	}
-	c.emitRollbackWarningEvent(squad, util.RollbackRevisionNotFound, "Unable to find the revision to rollback to.")
+	c.emitRollbackWarningEvent(squad, util.RollbackRevisionNotFound,
+		"Unable to find the revision to rollback to.")
 	// Gives up rollback
 	return c.updateSquadAndClearRollbackTo(squad)
 }
@@ -70,7 +72,9 @@ func (c *Controller) rollback(squad *carrierv1alpha1.Squad, gsSetList []*carrier
 // rollbackToTemplate compares the templates of the provided Squad and GameServerSet and
 // updates the Squad with the GameServerSet template in case they are different. It also
 // cleans up the rollback spec so subsequent requeues of the Squad won't end up in here.
-func (c *Controller) rollbackToTemplate(squad *carrierv1alpha1.Squad, gsSet *carrierv1alpha1.GameServerSet) (bool, error) {
+func (c *Controller) rollbackToTemplate(
+	squad *carrierv1alpha1.Squad,
+	gsSet *carrierv1alpha1.GameServerSet) (bool, error) {
 	performedRollback := false
 	if !EqualGameServerTemplate(&squad.Spec.Template, &gsSet.Spec.Template) {
 		klog.V(4).Infof("Rolling back Squad %q to template spec %+v", squad.Name, gsSet.Spec.Template.Spec)
@@ -78,7 +82,8 @@ func (c *Controller) rollbackToTemplate(squad *carrierv1alpha1.Squad, gsSet *car
 		SetSquadAnnotationsTo(squad, gsSet)
 		performedRollback = true
 	} else {
-		klog.V(4).Infof("Rolling back to a revision that contains the same template as current Squad %q, skipping rollback...", squad.Name)
+		klog.V(4).Infof("Rolling back to a revision that contains the "+
+			"same template as current Squad %q, skipping rollback...", squad.Name)
 		eventMsg := fmt.Sprintf("The rollback revision contains the same template as current Squad %q", squad.Name)
 		c.emitRollbackWarningEvent(squad, util.RollbackTemplateUnchanged, eventMsg)
 	}

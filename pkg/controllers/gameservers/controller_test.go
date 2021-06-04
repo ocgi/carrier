@@ -53,7 +53,8 @@ func TestNewControllerNodeTaint(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = wait.Poll(100*time.Millisecond, 1*time.Second, func() (done bool, err error) {
-		gs, err := c.carrierClient.CarrierV1alpha1().GameServers("default").Get("test", v1.GetOptions{})
+		gs, err := c.carrierClient.CarrierV1alpha1().
+			GameServers("default").Get("test", v1.GetOptions{})
 		if err != nil {
 			t.Error(err)
 			return false, nil
@@ -220,10 +221,11 @@ func TestNewControllerSyncRunning(t *testing.T) {
 	}
 }
 
-func fakeController(ctx context.Context) (v12.PodInformer, v12.NodeInformer, v1alpha12.GameServerInformer, *Controller, *fake.Clientset) {
-
+func fakeController(ctx context.Context) (v12.PodInformer, v12.NodeInformer,
+	v1alpha12.GameServerInformer, *Controller, *fake.Clientset) {
 	fakeClient := fake.NewSimpleClientset(node(), pod())
-	fakeGSClient := gsfake.NewSimpleClientset(&v1alpha1.GameServer{ObjectMeta: v1.ObjectMeta{Name: "test", Namespace: "default", UID: "123"}})
+	fakeGSClient := gsfake.NewSimpleClientset(
+		&v1alpha1.GameServer{ObjectMeta: v1.ObjectMeta{Name: "test", Namespace: "default", UID: "123"}})
 	factory := informers.NewSharedInformerFactory(fakeClient, 0)
 	podInformer := factory.Core().V1().Pods()
 	nodeInformer := factory.Core().V1().Nodes()
@@ -232,7 +234,8 @@ func fakeController(ctx context.Context) (v12.PodInformer, v12.NodeInformer, v1a
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: fakeClient.CoreV1().Events("default")})
+	eventBroadcaster.StartRecordingToSink(
+		&typedcorev1.EventSinkImpl{Interface: fakeClient.CoreV1().Events("default")})
 	s := runtime.NewScheme()
 	s.AddKnownTypes(v1alpha1.SchemeGroupVersion, &v1alpha1.GameServer{}, &v1alpha1.GameServerList{})
 
@@ -334,13 +337,15 @@ func nodeWithTaint() *corev1.Node {
 }
 
 func gs() *v1alpha1.GameServer {
-	return &v1alpha1.GameServer{ObjectMeta: v1.ObjectMeta{Name: "test", Namespace: "default", UID: "123"}}
+	return &v1alpha1.GameServer{
+		ObjectMeta: v1.ObjectMeta{Name: "test", Namespace: "default", UID: "123"}}
 }
 
 func gsToDelete() *v1alpha1.GameServer {
 	timeNow := v1.Now()
-	return &v1alpha1.GameServer{ObjectMeta: v1.ObjectMeta{Name: "test", Namespace: "default", DeletionTimestamp: &timeNow,
-		Finalizers: []string{carrier.GroupName}}}
+	return &v1alpha1.GameServer{
+		ObjectMeta: v1.ObjectMeta{Name: "test", Namespace: "default", DeletionTimestamp: &timeNow,
+			Finalizers: []string{carrier.GroupName}}}
 }
 
 func gsWithTemp() *v1alpha1.GameServer {

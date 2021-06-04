@@ -14,6 +14,8 @@
 
 package controllers
 
+// Controller defines a controller interface
 type Controller interface {
+	// Run starts a controller
 	Run(int, <-chan struct{}) error
 }

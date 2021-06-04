@@ -22,23 +22,33 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// RunOptions describes the controller running options
 type RunOptions struct {
-	KubeconfigPath    string
-	MasterUrl         string
-	QPS               int
-	Burst             int
-	Resync            time.Duration
-	ElectionName      string
+	// KubeconfigPath is kubeconfig path for running out of cluster
+	KubeconfigPath string
+	// MasterUrl only used for running out of cluster
+	MasterUrl string
+	// QOS of client-go
+	QPS int
+	// Burst of client-go
+	Burst int
+	// Resync period
+	Resync time.Duration
+	// ElectionName is name to identify
+	ElectionName string
+	// ElectionNamespace
 	ElectionNamespace string
-
-	SDKServiceAccount    string
+	// ElectionResourceLock can be endpoint, lease and so on
 	ElectionResourceLock string
-
+	// ShowVersion shows version if true
 	ShowVersion bool
-	MinPort     int
-	MaxPort     int
+	// MinPort of dynamic port allocation
+	MinPort int
+	// MaxPort of dynamic port allocation
+	MaxPort int
 }
 
+// NewServerRunOptions initialize the running options
 func NewServerRunOptions() *RunOptions {
 	options := &RunOptions{}
 	options.addKubeFlags()
@@ -58,7 +68,8 @@ func (s *RunOptions) addKubeFlags() {
 func (s *RunOptions) addElectionFlags() {
 	pflag.StringVar(&s.ElectionName, "election-name", "carrier-controller", "election name.")
 	pflag.StringVar(&s.ElectionNamespace, "election-namespace", "kube-system", "election namespace.")
-	pflag.StringVar(&s.ElectionResourceLock, "election-resource-lock", "leases", "election resource type, support endpoints, leases, configmaps and so on.")
+	pflag.StringVar(&s.ElectionResourceLock, "election-resource-lock", "leases",
+		"election resource type, support endpoints, leases, configmaps and so on.")
 
 }
 
@@ -68,6 +79,7 @@ func (s *RunOptions) addControllerFlags() {
 	pflag.IntVar(&s.MaxPort, "max-port", 20000, "max port for dynamic allocation")
 }
 
+// NewConfig builds kube config
 func (s *RunOptions) NewConfig() (*rest.Config, error) {
 	var (
 		config *rest.Config

@@ -22,11 +22,15 @@ import (
 )
 
 var (
-	Version   = "default"
-	Commit    = "default"
+	// Version describes the components version
+	Version = "default"
+	// Commit describes the components commit
+	Commit = "default"
+	// BuildTime describes the components build time
 	BuildTime = "unknow"
 )
 
+// Print prints the components version
 func Print() {
 	klog.Info(fmt.Sprintf("Version: %s", Version))
 	klog.Info(fmt.Sprintf("Commit: %s", Commit))

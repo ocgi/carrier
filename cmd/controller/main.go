@@ -85,24 +85,10 @@ func main() {
 		klog.Fatalf("wait for crd ready timeout")
 	}
 
-	gscontroller := gameservers.NewController(
-		client,
-		coreFactory,
-		carrierClient,
-		carrierFactory,
-		runConfig.MinPort,
-		runConfig.MaxPort,
-	)
-	gsscontroller := gameserversets.NewController(
-		client,
-		carrierClient,
-		carrierFactory,
-	)
-	sqdcontroller := squad.NewController(
-		client,
-		carrierClient,
-		carrierFactory,
-	)
+	gscontroller := gameservers.NewController(client, coreFactory, carrierClient, carrierFactory,
+		runConfig.MinPort, runConfig.MaxPort)
+	gsscontroller := gameserversets.NewController(client, carrierClient, carrierFactory)
+	sqdcontroller := squad.NewController(client, carrierClient, carrierFactory)
 	coreFactory.Start(stop)
 	carrierFactory.Start(stop)
 	run := func(ctx context.Context) {
@@ -135,7 +121,7 @@ func main() {
 		klog.Fatalf("Unable to create leader election lock: %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.TODO()) // TODO once Run() accepts a context, it should be used here
+	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 	go func() {
 		select {

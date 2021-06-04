@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"time"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -30,8 +29,8 @@ import (
 	"github.com/ocgi/carrier/pkg/util"
 )
 
-// GameServer build a GameServerFrom GameServerSet
-func GameServer(gsSet *carrierv1alpha1.GameServerSet) *carrierv1alpha1.GameServer {
+// BuildGameServer build a GameServerFrom GameServerSet
+func BuildGameServer(gsSet *carrierv1alpha1.GameServerSet) *carrierv1alpha1.GameServer {
 	gs := &carrierv1alpha1.GameServer{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: gsSet.Name + "-",
@@ -60,7 +59,8 @@ func GameServer(gsSet *carrierv1alpha1.GameServerSet) *carrierv1alpha1.GameServe
 // IsGameServerSetScaling check if the GameServerSet is scaling GameServer.
 func IsGameServerSetScaling(gsSet *carrierv1alpha1.GameServerSet) bool {
 	for _, condition := range gsSet.Status.Conditions {
-		if condition.Type == carrierv1alpha1.GameServerSetScalingInProgress && condition.Status == corev1.ConditionTrue {
+		if condition.Type == carrierv1alpha1.GameServerSetScalingInProgress &&
+			condition.Status == corev1.ConditionTrue {
 			return true
 		}
 	}
@@ -80,44 +80,6 @@ func IsGameServerSetInPlaceUpdating(gsSet *carrierv1alpha1.GameServerSet) (bool,
 		return true, number
 	}
 	return false, 0
-}
-
-// ChangeScalingStatus remove the ScalingInProgress when scaling finishes
-func ChangeScalingStatus(gsSet *carrierv1alpha1.GameServerSet) []carrierv1alpha1.GameServerSetCondition {
-	var conditions []carrierv1alpha1.GameServerSetCondition
-	for _, condition := range gsSet.Status.Conditions {
-		if condition.Type == carrierv1alpha1.GameServerSetScalingInProgress && condition.Status == corev1.ConditionTrue {
-			conditions = append(conditions, carrierv1alpha1.GameServerSetCondition{
-				Type:               condition.Type,
-				Status:             corev1.ConditionFalse,
-				LastTransitionTime: metav1.Time{Time: time.Now()},
-				Reason:             "Scaling Success",
-				Message:            "Scaling Success, scaling label removed",
-			})
-			continue
-		}
-		conditions = append(conditions, condition)
-	}
-	return conditions
-}
-
-// AddScalingStatus remove the ScalingInProgress when scaling finishes
-func AddScalingStatus(gsSet *carrierv1alpha1.GameServerSet) []carrierv1alpha1.GameServerSetCondition {
-	var conditions []carrierv1alpha1.GameServerSetCondition
-	for _, condition := range gsSet.Status.Conditions {
-		if condition.Type == carrierv1alpha1.GameServerSetScalingInProgress {
-			continue
-		}
-		conditions = append(conditions, condition)
-	}
-	conditions = append(conditions, carrierv1alpha1.GameServerSetCondition{
-		Type:               carrierv1alpha1.GameServerSetScalingInProgress,
-		Status:             corev1.ConditionTrue,
-		Reason:             "Scaling required",
-		Message:            "GameServer Scaling required",
-		LastTransitionTime: metav1.Time{Time: time.Now()},
-	})
-	return conditions
 }
 
 // GetDeletionCostFromGameServerAnnotations returns the integer value of gs-deletion-cost. Returns int64 max

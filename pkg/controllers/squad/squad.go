@@ -77,9 +77,13 @@ func (c *Controller) syncStatusOnly(squad *carrierv1alpha1.Squad, gsSetList []*c
 }
 
 // syncSquadStatus checks if the status is up-to-date and sync it if necessary
-func (c *Controller) syncSquadStatus(allGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) error {
+func (c *Controller) syncSquadStatus(
+	allGSSets []*carrierv1alpha1.GameServerSet,
+	newGSSet *carrierv1alpha1.GameServerSet,
+	squad *carrierv1alpha1.Squad) error {
 	newStatus := calculateStatus(allGSSets, newGSSet, squad)
-	klog.V(4).Infof("sync squad status: name: %v, spec: %v, status: %v", squad.ObjectMeta, squad.Spec, newStatus)
+	klog.V(4).Infof("sync squad status: name: %v, spec: %v, status: %v",
+		squad.ObjectMeta, squad.Spec, newStatus)
 	if reflect.DeepEqual(squad.Status, newStatus) {
 		return nil
 	}
@@ -91,7 +95,10 @@ func (c *Controller) syncSquadStatus(allGSSets []*carrierv1alpha1.GameServerSet,
 }
 
 // calculateStatus calculates the latest status for the provided Squad by looking into the provided GameServerSet.
-func calculateStatus(allGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) carrierv1alpha1.SquadStatus {
+func calculateStatus(
+	allGSSets []*carrierv1alpha1.GameServerSet,
+	newGSSet *carrierv1alpha1.GameServerSet,
+	squad *carrierv1alpha1.Squad) carrierv1alpha1.SquadStatus {
 	status := carrierv1alpha1.SquadStatus{
 		ObservedGeneration: squad.Generation,
 		Replicas:           GetActualReplicaCountForGameServerSets(allGSSets),
@@ -108,9 +115,8 @@ func calculateStatus(allGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carri
 	return status
 }
 
-// ListGameServerSetsBySquadOwner lists all the GameServerSets for a given
-// Squad
-func (c *Controller) listGameServerSetsBySquadOwner(squad *carrierv1alpha1.Squad) ([]*carrierv1alpha1.GameServerSet, error) {
+// ListGameServerSetsBySquadOwner lists all the GameServerSets for a given Squad
+func (c *Controller) listGameServerSetsByOwner(squad *carrierv1alpha1.Squad) ([]*carrierv1alpha1.GameServerSet, error) {
 	labelSelector := labels.Set{util.SquadNameLabelKey: squad.ObjectMeta.Name}
 	if squad.Spec.Selector != nil && len(squad.Spec.Selector.MatchLabels) != 0 {
 		labelSelector = squad.Spec.Selector.MatchLabels
@@ -127,6 +133,7 @@ func (c *Controller) listGameServerSetsBySquadOwner(squad *carrierv1alpha1.Squad
 		}
 	}
 
+	//
 	return result, nil
 }
 
@@ -144,8 +151,12 @@ func (c *Controller) listGameServersBySquadOwner(squad *carrierv1alpha1.Squad) (
 	return list, nil
 }
 
-// getAllGameServerSetsAndSyncRevision returns all the GameServerSet for the provided Squad (new and all old), with new GSSet's and Squad's revision updated.
-func (c *Controller) getAllGameServerSetsAndSyncRevision(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet, createIfNotExisted bool) (*carrierv1alpha1.GameServerSet, []*carrierv1alpha1.GameServerSet, error) {
+// getAllGameServerSetsAndSyncRevision returns all the GameServerSet for the provided Squad (new and all old),
+// with new GSSet's and Squad's revision updated.
+func (c *Controller) getAllGameServerSetsAndSyncRevision(
+	squad *carrierv1alpha1.Squad,
+	gsSetList []*carrierv1alpha1.GameServerSet,
+	createIfNotExisted bool) (*carrierv1alpha1.GameServerSet, []*carrierv1alpha1.GameServerSet, error) {
 	_, allOldGSSets := FindOldGameServerSets(squad, gsSetList)
 	// Get new GameServerSet with the updated revision number
 	newGSSet, err := c.getNewGameServerSet(squad, gsSetList, allOldGSSets, createIfNotExisted)
@@ -156,7 +167,9 @@ func (c *Controller) getAllGameServerSetsAndSyncRevision(squad *carrierv1alpha1.
 }
 
 // findOrCreateGameServerSet returns the active or latest GameServerSet, or create new one on the first time
-func (c *Controller) findOrCreateGameServerSet(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet) (*carrierv1alpha1.GameServerSet, bool, error) {
+func (c *Controller) findOrCreateGameServerSet(
+	squad *carrierv1alpha1.Squad,
+	gsSetList []*carrierv1alpha1.GameServerSet) (*carrierv1alpha1.GameServerSet, bool, error) {
 	var (
 		allOldGSSets  []*carrierv1alpha1.GameServerSet
 		newGSSet      *carrierv1alpha1.GameServerSet
@@ -176,11 +189,18 @@ func (c *Controller) findOrCreateGameServerSet(squad *carrierv1alpha1.Squad, gsS
 	return newGSSet, isFirstCreate, nil
 }
 
-// Returns a GameServerSet that matches the intent of the given Squad. Returns nil if the new GameServerSet doesn't exist yet.
-// 1. Get existing new GameServerSet (the GameServerSet that the given Squad targets, whose GameServer template is the same as Squad's).
-// 2. If there's existing new GameServerSet, update its revision number if it's smaller than (maxOldRevision + 1), where maxOldRevision is the max revision number among all old GameServerSetes.
-// 3. If there's no existing new GameServerSet and createIfNotExisted is true, create one with appropriate revision number (maxOldRevision + 1) and replicas.
-func (c *Controller) getNewGameServerSet(squad *carrierv1alpha1.Squad, gsSetList, oldGSSets []*carrierv1alpha1.GameServerSet, createIfNotExisted bool) (*carrierv1alpha1.GameServerSet, error) {
+// Returns a GameServerSet that matches the intent of the given Squad.
+// Returns nil if the new GameServerSet doesn't exist yet.
+// 1. Get existing new GameServerSet (the GameServerSet that the given Squad targets,
+//    whose GameServer template is the same as Squad's).
+// 2. If there's existing new GameServerSet, update its revision number if it's smaller than (maxOldRevision + 1),
+//    where maxOldRevision is the max revision number among all old GameServerSetes.
+// 3. If there's no existing new GameServerSet and createIfNotExisted is true,
+//    create one with appropriate revision number (maxOldRevision + 1) and replicas.
+func (c *Controller) getNewGameServerSet(
+	squad *carrierv1alpha1.Squad,
+	gsSetList, oldGSSets []*carrierv1alpha1.GameServerSet,
+	createIfNotExisted bool) (*carrierv1alpha1.GameServerSet, error) {
 	existingNewGSSet := FindNewGameServerSet(squad, gsSetList)
 
 	// Calculate the max revision number among all old GameServerSet
@@ -193,7 +213,8 @@ func (c *Controller) getNewGameServerSet(squad *carrierv1alpha1.Squad, gsSetList
 		gsSetCopy := existingNewGSSet.DeepCopy()
 
 		// Set existing new GameServerSet's annotation
-		annotationsUpdated := SetNewGameServerSetAnnotations(squad, gsSetCopy, newRevision, true, maxRevHistoryLengthInChars)
+		annotationsUpdated := SetNewGameServerSetAnnotations(squad, gsSetCopy,
+			newRevision, true, maxRevHistoryLengthInChars)
 		if annotationsUpdated {
 			return c.gameServerSetGetter.GameServerSets(gsSetCopy.ObjectMeta.Namespace).Update(gsSetCopy)
 		}
@@ -203,7 +224,8 @@ func (c *Controller) getNewGameServerSet(squad *carrierv1alpha1.Squad, gsSetList
 		cond := GetSquadCondition(squad.Status, carrierv1alpha1.SquadProgressing)
 		if cond == nil {
 			msg := fmt.Sprintf("Found new GameServerSet %q", gsSetCopy.Name)
-			condition := NewSquadCondition(carrierv1alpha1.SquadProgressing, corev1.ConditionTrue, util.FoundNewGSSetReason, msg)
+			condition := NewSquadCondition(carrierv1alpha1.SquadProgressing,
+				corev1.ConditionTrue, util.FoundNewGSSetReason, msg)
 			SetSquadCondition(&squad.Status, *condition)
 			needsUpdate = true
 		}
@@ -278,7 +300,9 @@ func (c *Controller) getNewGameServerSet(squad *carrierv1alpha1.Squad, gsSetList
 		// Otherwise, this is a hash collision and we need to increment the collisionCount field in
 		// the status of the Squad and requeue to try the creation in the next sync.
 		controllerRef := metav1.GetControllerOf(gsSet)
-		if controllerRef != nil && controllerRef.UID == squad.UID && EqualGameServerTemplate(&squad.Spec.Template, &gsSet.Spec.Template) {
+		if controllerRef != nil &&
+			controllerRef.UID == squad.UID &&
+			EqualGameServerTemplate(&squad.Spec.Template, &gsSet.Spec.Template) {
 			createdGSSet = gsSet
 			err = nil
 			break
@@ -299,13 +323,21 @@ func (c *Controller) getNewGameServerSet(squad *carrierv1alpha1.Squad, gsSetList
 		return nil, err
 	}
 	if !alreadyExists && newReplicasCount > 0 {
-		c.recorder.Eventf(squad, corev1.EventTypeNormal, "ScalingGameServerSet", "Scaled up GameServerSet %s to %d", createdGSSet.Name, newReplicasCount)
+		c.recorder.Eventf(
+			squad,
+			corev1.EventTypeNormal,
+			"ScalingGameServerSet",
+			"Scaled up GameServerSet %s to %d", createdGSSet.Name, newReplicasCount)
 	}
 
 	needsUpdate := SetSquadRevision(squad, newRevision)
 	if !alreadyExists {
 		msg := fmt.Sprintf("Created new GameServerSet %q", createdGSSet.Name)
-		condition := NewSquadCondition(carrierv1alpha1.SquadProgressing, corev1.ConditionTrue, util.NewGameServerSetReason, msg)
+		condition := NewSquadCondition(
+			carrierv1alpha1.SquadProgressing,
+			corev1.ConditionTrue,
+			util.NewGameServerSetReason,
+			msg)
 		SetSquadCondition(&squad.Status, *condition)
 		needsUpdate = true
 	}
@@ -320,7 +352,10 @@ func (c *Controller) getNewGameServerSet(squad *carrierv1alpha1.Squad, gsSetList
 // have the effect of hastening the rollout progress, which could produce a higher proportion of unavailable
 // replicas in the event of a problem with the rolled out template. Should run only on scaling events or
 // when a Squads is paused and not during the normal rollout process.
-func (c *Controller) scale(squad *carrierv1alpha1.Squad, newGSSet *carrierv1alpha1.GameServerSet, oldGSSets []*carrierv1alpha1.GameServerSet) error {
+func (c *Controller) scale(
+	squad *carrierv1alpha1.Squad,
+	newGSSet *carrierv1alpha1.GameServerSet,
+	oldGSSets []*carrierv1alpha1.GameServerSet) error {
 	// If there is only one active GameServerSet then we should scale that up to the full count of the
 	// Squads. If there is no active GameServerSet, then we should scale up the newest GameServerSet.
 	if activeOrLatest := FindActiveOrLatest(newGSSet, oldGSSets); activeOrLatest != nil {
@@ -330,7 +365,6 @@ func (c *Controller) scale(squad *carrierv1alpha1.Squad, newGSSet *carrierv1alph
 		_, _, err := c.scaleGameServerSetAndRecordEvent(activeOrLatest, squad.Spec.Replicas, squad)
 		return err
 	}
-
 	// If the new GameServerSet is saturated, old GameServerSets should be fully scaled down.
 	// This case handles GameServerSet adoption during a saturated new GameServerSet.
 	if IsSaturated(squad, newGSSet) {
@@ -341,24 +375,20 @@ func (c *Controller) scale(squad *carrierv1alpha1.Squad, newGSSet *carrierv1alph
 		}
 		return nil
 	}
-
 	// There are old GameServerSets with GameServers and the new GameServerSet is not saturated.
 	// We need to proportionally scale all GameServerSets (new and old) in case of a
 	// rolling Squads.
 	if IsRollingUpdate(squad) {
 		allGSSets := FilterActiveGameServerSets(append(oldGSSets, newGSSet))
 		allGSSetsReplicas := GetReplicaCountForGameServerSets(allGSSets)
-
 		allowedSize := int32(0)
 		if squad.Spec.Replicas > 0 {
 			allowedSize = squad.Spec.Replicas + MaxSurge(*squad)
 		}
-
 		// Number of additional replicas that can be either added or removed from the total
 		// replicas count. These replicas should be distributed proportionally to the active
 		// GameServerSets.
 		squadReplicasToAdd := allowedSize - allGSSetsReplicas
-
 		// The additional replicas should be distributed proportionally amongst the active
 		// GameServerSets from the larger to the smaller in size GameServerSet. Scaling direction
 		// drives what happens in case we are trying to scale GameServerSets of the same size.
@@ -369,12 +399,10 @@ func (c *Controller) scale(squad *carrierv1alpha1.Squad, newGSSet *carrierv1alph
 		case squadReplicasToAdd > 0:
 			sort.Sort(GameServerSetsBySizeNewer(allGSSets))
 			scalingOperation = "up"
-
 		case squadReplicasToAdd < 0:
 			sort.Sort(GameServerSetsBySizeOlder(allGSSets))
 			scalingOperation = "down"
 		}
-
 		// Iterate over all active GameServerSets and estimate proportions for each of them.
 		// The absolute value of SquadsReplicasAdded should never exceed the absolute
 		// value of SquadsReplicasToAdd.
@@ -382,12 +410,10 @@ func (c *Controller) scale(squad *carrierv1alpha1.Squad, newGSSet *carrierv1alph
 		nameToSize := make(map[string]int32)
 		for i := range allGSSets {
 			gsSet := allGSSets[i]
-
 			// Estimate proportions if we have replicas to add, otherwise simply populate
 			// nameToSize with the current sizes for each GameServerSet.
 			if squadReplicasToAdd != 0 {
 				proportion := GetProportion(gsSet, *squad, squadReplicasToAdd, squadReplicasAdded)
-
 				nameToSize[gsSet.Name] = gsSet.Spec.Replicas + proportion
 				squadReplicasAdded += proportion
 			} else {
@@ -413,7 +439,10 @@ func (c *Controller) scale(squad *carrierv1alpha1.Squad, newGSSet *carrierv1alph
 	return nil
 }
 
-func (c *Controller) scaleGameServerSetAndRecordEvent(gsSet *carrierv1alpha1.GameServerSet, newScale int32, squad *carrierv1alpha1.Squad) (bool, *carrierv1alpha1.GameServerSet, error) {
+func (c *Controller) scaleGameServerSetAndRecordEvent(
+	gsSet *carrierv1alpha1.GameServerSet,
+	newScale int32,
+	squad *carrierv1alpha1.Squad) (bool, *carrierv1alpha1.GameServerSet, error) {
 	// No need to scale
 	if gsSet.Spec.Replicas == newScale {
 		return false, gsSet, nil
@@ -428,10 +457,17 @@ func (c *Controller) scaleGameServerSetAndRecordEvent(gsSet *carrierv1alpha1.Gam
 	return scaled, newRS, err
 }
 
-func (c *Controller) scaleGameServerSet(gsSet *carrierv1alpha1.GameServerSet, newScale int32, squad *carrierv1alpha1.Squad, scalingOperation string) (bool, *carrierv1alpha1.GameServerSet, error) {
+func (c *Controller) scaleGameServerSet(
+	gsSet *carrierv1alpha1.GameServerSet,
+	newScale int32,
+	squad *carrierv1alpha1.Squad,
+	scalingOperation string) (bool, *carrierv1alpha1.GameServerSet, error) {
 
 	sizeNeedsUpdate := gsSet.Spec.Replicas != newScale
-	annotationsNeedUpdate := ReplicasAnnotationsNeedUpdate(gsSet, squad.Spec.Replicas, squad.Spec.Replicas+MaxSurge(*squad))
+	annotationsNeedUpdate := ReplicasAnnotationsNeedUpdate(
+		gsSet,
+		squad.Spec.Replicas,
+		squad.Spec.Replicas+MaxSurge(*squad))
 
 	scaled := false
 	var err error
@@ -441,14 +477,22 @@ func (c *Controller) scaleGameServerSet(gsSet *carrierv1alpha1.GameServerSet, ne
 		// Wait for the game server to exit before scaling down
 		// or gracefully update
 		if IsGameServerSetScaling(gsSetCopy, squad) || IsGracefulUpdate(squad) {
-			klog.Infof("Update GameServerSet: %v, annotation `%s`", gsSetCopy.ObjectMeta, util.ScalingReplicasAnnotation)
+			klog.Infof("Update GameServerSet: %v, annotation `%s`",
+				gsSetCopy.ObjectMeta, util.ScalingReplicasAnnotation)
 			SetScalingAnnotations(gsSetCopy)
 		}
 		SetReplicasAnnotations(gsSetCopy, squad.Spec.Replicas, squad.Spec.Replicas+MaxSurge(*squad))
 		gsSet, err = c.gameServerSetGetter.GameServerSets(gsSetCopy.Namespace).Update(gsSetCopy)
 		if err == nil && sizeNeedsUpdate {
 			scaled = true
-			c.recorder.Eventf(squad, corev1.EventTypeNormal, "ScalingGameServerSet", "Scaled %s GameServerSet %s to %d", scalingOperation, gsSet.Name, newScale)
+			c.recorder.Eventf(
+				squad,
+				corev1.EventTypeNormal,
+				"ScalingGameServerSet",
+				"Scaled %s GameServerSet %s to %d",
+				scalingOperation,
+				gsSet.Name,
+				newScale)
 		}
 	}
 	return scaled, gsSet, err
@@ -479,11 +523,15 @@ func (c *Controller) cleanupSquad(oldGSSets []*carrierv1alpha1.GameServerSet, sq
 	for i := int32(0); i < diff; i++ {
 		gsSet := cleanableGSSets[i]
 		// Avoid delete GameServerSet with non-zero replica counts
-		if gsSet.Status.Replicas != 0 || gsSet.Spec.Replicas != 0 || gsSet.Generation > gsSet.Status.ObservedGeneration || gsSet.DeletionTimestamp != nil {
+		if gsSet.Status.Replicas != 0 ||
+			gsSet.Spec.Replicas != 0 ||
+			gsSet.Generation > gsSet.Status.ObservedGeneration ||
+			gsSet.DeletionTimestamp != nil {
 			continue
 		}
 		klog.V(4).Infof("Trying to cleanup GameServerSet %q for squad %q", gsSet.Name, squad.Name)
-		if err := c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Delete(gsSet.Name, &metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
+		if err := c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Delete(gsSet.Name,
+			&metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 			// Return error instead of aggregating and continuing DELETEs on the theory
 			// that we may be overloading the api server.
 			return err
@@ -501,11 +549,19 @@ func (c Controller) checkPausedConditions(squad *carrierv1alpha1.Squad) error {
 
 	needsUpdate := false
 	if squad.Spec.Paused && !pausedCondExists {
-		condition := NewSquadCondition(carrierv1alpha1.SquadProgressing, corev1.ConditionUnknown, util.PausedDeployReason, "Squad is paused")
+		condition := NewSquadCondition(
+			carrierv1alpha1.SquadProgressing,
+			corev1.ConditionUnknown,
+			util.PausedDeployReason,
+			"Squad is paused")
 		SetSquadCondition(&squad.Status, *condition)
 		needsUpdate = true
 	} else if !squad.Spec.Paused && pausedCondExists {
-		condition := NewSquadCondition(carrierv1alpha1.SquadProgressing, corev1.ConditionUnknown, util.ResumedDeployReason, "Squad is resumed")
+		condition := NewSquadCondition(
+			carrierv1alpha1.SquadProgressing,
+			corev1.ConditionUnknown,
+			util.ResumedDeployReason,
+			"Squad is resumed")
 		SetSquadCondition(&squad.Status, *condition)
 		needsUpdate = true
 	}
@@ -521,7 +577,9 @@ func (c Controller) checkPausedConditions(squad *carrierv1alpha1.Squad) error {
 
 // isScalingEvent checks whether the provided Squad has been updated with a scaling event
 // by looking at the desired-replicas annotation in the active GameServerSet of the Squad.
-func (c *Controller) isScalingEvent(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet) (bool, error) {
+func (c *Controller) isScalingEvent(
+	squad *carrierv1alpha1.Squad,
+	gsSetList []*carrierv1alpha1.GameServerSet) (bool, error) {
 	newGSSet, oldGSSets, err := c.getAllGameServerSetsAndSyncRevision(squad, gsSetList, false)
 	if err != nil {
 		return false, err
@@ -539,12 +597,17 @@ func (c *Controller) isScalingEvent(squad *carrierv1alpha1.Squad, gsSetList []*c
 	return false, nil
 }
 
-// cleanupUnhealthyReplicas will scale down old GameServerSet with unhealthy replicas, so that all unhealthy replicas will be deleted.
-func (c *Controller) cleanupUnhealthyReplicas(oldGSSets []*carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad, maxCleanupCount int32) ([]*carrierv1alpha1.GameServerSet, int32, error) {
+// cleanupUnhealthyReplicas will scale down old GameServerSet with unhealthy replicas,
+// so that all unhealthy replicas will be deleted.
+func (c *Controller) cleanupUnhealthyReplicas(
+	oldGSSets []*carrierv1alpha1.GameServerSet,
+	squad *carrierv1alpha1.Squad,
+	maxCleanupCount int32) ([]*carrierv1alpha1.GameServerSet, int32, error) {
 	sort.Sort(GameServerSetsByCreationTimestamp(oldGSSets))
-	// Safely scale down all old GameServerSet with unhealthy replicas. GameServer set will sort the GameServers in the order
-	// such that not-ready < ready, unscheduled < scheduled, and pending < running. This ensures that unhealthy replicas will
-	// been deleted first and won't increase unavailability.
+	// Safely scale down all old GameServerSet with unhealthy replicas.
+	// GameServer set will sort the GameServers in the order
+	// such that not-ready < ready, unscheduled < scheduled, and pending < running.
+	// This ensures that unhealthy replicas will been deleted first and won't increase unavailability.
 	totalScaledDown := int32(0)
 	for i, targetGSSet := range oldGSSets {
 		if totalScaledDown >= maxCleanupCount {
@@ -554,16 +617,21 @@ func (c *Controller) cleanupUnhealthyReplicas(oldGSSets []*carrierv1alpha1.GameS
 			// cannot scale down this GameServerSet.
 			continue
 		}
-		klog.V(4).Infof("Found %d ready GameServers in old GSSet %s/%s", targetGSSet.Status.ReadyReplicas, targetGSSet.Namespace, targetGSSet.Name)
+		klog.V(4).Infof("Found %d ready GameServers in old GSSet %s/%s",
+			targetGSSet.Status.ReadyReplicas,
+			targetGSSet.Namespace,
+			targetGSSet.Name)
 		if targetGSSet.Spec.Replicas == targetGSSet.Status.ReadyReplicas {
 			// no unhealthy replicas found, no scaling required.
 			continue
 		}
 
-		scaledDownCount := int32(integer.IntMin(int(maxCleanupCount-totalScaledDown), int(targetGSSet.Spec.Replicas-targetGSSet.Status.ReadyReplicas)))
+		scaledDownCount := int32(integer.IntMin(int(maxCleanupCount-totalScaledDown),
+			int(targetGSSet.Spec.Replicas-targetGSSet.Status.ReadyReplicas)))
 		newReplicasCount := targetGSSet.Spec.Replicas - scaledDownCount
 		if newReplicasCount > targetGSSet.Spec.Replicas {
-			return nil, 0, fmt.Errorf("when cleaning up unhealthy replicas, got invalid request to scale down %s/%s %d -> %d", targetGSSet.Namespace, targetGSSet.Name, targetGSSet.Spec.Replicas, newReplicasCount)
+			return nil, 0, fmt.Errorf("when cleaning up unhealthy replicas, got invalid request to scale down "+
+				"%s/%s %d -> %d", targetGSSet.Namespace, targetGSSet.Name, targetGSSet.Spec.Replicas, newReplicasCount)
 		}
 		_, updatedOldGSSet, err := c.scaleGameServerSetAndRecordEvent(targetGSSet, newReplicasCount, squad)
 		if err != nil {

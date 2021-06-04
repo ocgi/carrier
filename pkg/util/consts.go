@@ -77,11 +77,13 @@ const (
 	// deletion cost are preferred to be deleted before pods with higher deletion cost.
 	// Note that this is honored on a best-effort basis, and so it does not offer guarantees on
 	// game server deletion order.
-	// The implicit deletion cost for game servers that don't set the annotation is int64 max, negative values are permitted.
+	// The implicit deletion cost for game servers that don't set the annotation is int64 max
+	// negative values are permitted.
 	GameServerDeletionCost = "carrier.ocgi.dev/gs-deletion-cost"
 	// GameServerDeletionMetrics is the metric name used by cost-server when sorting the candidate game servers
 	GameServerDeletionMetrics = "carrier.ocgi.dev/gs-cost-metrics-name"
-	// GameServerHash describes the pod spec hash of game server, it will be add to gameserver set's and gameserver's label
+	// GameServerHash describes the pod spec hash of game server,
+	// it will be add to gameserver set's and gameserver's label
 	GameServerHash = "carrier.ocgi.dev/gameserver-template-hash"
 	// GameServerInPlaceUpdateAnnotation describes gameserver in place update info
 	GameServerInPlaceUpdateAnnotation = "carrier.ocgi.dev/inplace-update-threshold"
