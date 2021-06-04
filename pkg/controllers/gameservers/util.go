@@ -226,8 +226,8 @@ func buildPod(gs *carrierv1alpha1.GameServer) (*corev1.Pod, error) {
 
 // podObjectMeta configures the pod ObjectMeta details
 func podObjectMeta(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
-	pod.Labels = merge(pod.Labels, gs.Labels)
-	pod.Annotations = merge(pod.Annotations, gs.Annotations)
+	pod.Labels = util.Merge(pod.Labels, gs.Labels)
+	pod.Annotations = util.Merge(pod.Annotations, gs.Annotations)
 	pod.Labels[util.RoleLabelKey] = util.GameServerLabelRoleValue
 	pod.Labels[util.GameServerPodLabelKey] = gs.Name
 	ref := metav1.NewControllerRef(gs, carrierv1alpha1.SchemeGroupVersion.WithKind("GameServer"))
@@ -329,18 +329,6 @@ func FindContainer(gss *carrierv1alpha1.GameServerSpec, name string) (int, corev
 	}
 
 	return -1, corev1.Container{}, errors.Errorf("Could not find a container named %s", name)
-}
-
-// merge helps merge labels or annotations
-func merge(one, two map[string]string) map[string]string {
-	three := make(map[string]string)
-	for k, v := range one {
-		three[k] = v
-	}
-	for k, v := range two {
-		three[k] = v
-	}
-	return three
 }
 
 // checkNodeTaintByCA checks if node is marked as deletable.
