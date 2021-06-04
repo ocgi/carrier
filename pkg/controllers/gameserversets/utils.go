@@ -44,7 +44,7 @@ func GameServer(gsSet *carrierv1alpha1.GameServerSet) *carrierv1alpha1.GameServe
 
 	gs.Spec.Scheduling = gsSet.Spec.Scheduling
 	ref := metav1.NewControllerRef(gsSet, carrierv1alpha1.SchemeGroupVersion.WithKind("GameServerSet"))
-	gs.OwnerReferences = append(gs.OwnerReferences, *ref)
+	gs.OwnerReferences = []metav1.OwnerReference{*ref}
 
 	if gs.Labels == nil {
 		gs.Labels = make(map[string]string)
