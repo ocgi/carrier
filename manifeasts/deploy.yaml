@@ -16,13 +16,13 @@ rules:
       - pods
       - events
     verbs:
-      - *
+      - "*"
   - apiGroups:
       - "carrier.ocgi.dev"
     resources:
-      - *
+      - "*"
     verbs:
-      - *
+      - "*"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
