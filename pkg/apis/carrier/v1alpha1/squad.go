@@ -72,6 +72,7 @@ type SquadSpec struct {
 	ExcludeConstraints *bool `json:"excludeConstraints,omitempty"`
 }
 
+// RollbackConfig is the rollback config for a Squad
 type RollbackConfig struct {
 	// The revision to rollback to. If set to 0, rollback to the last revision.
 	Revision int64 `json:"revision"`
@@ -150,9 +151,11 @@ const (
 	// RollingUpdateSquadStrategyType Replace the old GameServerSets by new one using rolling update
 	// i.e gradually scale down the old GameServerSets and scale up the new one.
 	RollingUpdateSquadStrategyType SquadStrategyType = "RollingUpdate"
-	// CanaryUpdateSquadStrategyType Replace the old GameServerSets by new one using canary update, you can specify the updated threshold
+	// CanaryUpdateSquadStrategyType Replace the old GameServerSets by new one using canary update,
+	// you can specify the updated threshold
 	CanaryUpdateSquadStrategyType SquadStrategyType = "CanaryUpdate"
-	// InplaceUpdateSquadStrategyType Replace the old GameServerSets by new one using inplace update, you can specify the updated threshold
+	// InplaceUpdateSquadStrategyType Replace the old GameServerSets by new one using inplace update,
+	// you can specify the updated threshold
 	InplaceUpdateSquadStrategyType SquadStrategyType = "InplaceUpdate"
 )
 

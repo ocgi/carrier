@@ -88,7 +88,8 @@ func TestControllerSyncGameServerSet(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			gameServers, err := c.carrierClient.CarrierV1alpha1().GameServers(gss.Namespace).List(v1.ListOptions{LabelSelector: labels.FormatLabels(selectMap)})
+			gameServers, err := c.carrierClient.CarrierV1alpha1().
+				GameServers(gss.Namespace).List(v1.ListOptions{LabelSelector: labels.FormatLabels(selectMap)})
 			if err != nil {
 				t.Error(err)
 			}
@@ -106,7 +107,8 @@ func TestControllerSyncGameServerSet(t *testing.T) {
 	}
 }
 
-func fakeController(ctx context.Context) (*fake.Clientset, *gsfake.Clientset, v1alpha12.GameServerInformer, v1alpha12.GameServerSetInformer, *Controller) {
+func fakeController(ctx context.Context) (*fake.Clientset, *gsfake.Clientset,
+	v1alpha12.GameServerInformer, v1alpha12.GameServerSetInformer, *Controller) {
 
 	fakeClient := fake.NewSimpleClientset()
 	fakeGSClient := gsfake.NewSimpleClientset(gss())
@@ -116,7 +118,8 @@ func fakeController(ctx context.Context) (*fake.Clientset, *gsfake.Clientset, v1
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: fakeClient.CoreV1().Events("default")})
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{
+		Interface: fakeClient.CoreV1().Events("default")})
 	s := runtime.NewScheme()
 	s.AddKnownTypes(v1alpha1.SchemeGroupVersion, &v1alpha1.GameServerSet{}, &v1alpha1.GameServerSetList{})
 

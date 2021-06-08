@@ -79,7 +79,8 @@ func sortGameServersByCreationTime(list []*carrierv1alpha1.GameServer) []*carrie
 }
 
 // sortGameServersByHash sorts by hash. hash same as gss means a newer version.
-func sortGameServersByHash(list []*carrierv1alpha1.GameServer, gameServerSet *carrierv1alpha1.GameServerSet) []*carrierv1alpha1.GameServer {
+func sortGameServersByHash(list []*carrierv1alpha1.GameServer,
+	gameServerSet *carrierv1alpha1.GameServerSet) []*carrierv1alpha1.GameServer {
 	sort.Slice(list, func(i, j int) bool {
 		a := list[i]
 		b := list[j]

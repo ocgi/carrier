@@ -81,13 +81,15 @@ func NewController(
 		squadLister:         squads.Lister(),
 		squadSynced:         squadsInformer.HasSynced,
 	}
-	c.workerQueue = workqueue.NewRateLimitingQueue(workqueue.NewItemFastSlowRateLimiter(20*time.Millisecond, 500*time.Millisecond, 5))
+	c.workerQueue = workqueue.NewRateLimitingQueue(
+		workqueue.NewItemFastSlowRateLimiter(20*time.Millisecond, 500*time.Millisecond, 5))
 	s := scheme.Scheme
 	// Register operator types with the runtime scheme.
 	s.AddKnownTypes(carrierv1alpha1.SchemeGroupVersion, &carrierv1alpha1.Squad{})
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
+	eventBroadcaster.StartRecordingToSink(
+		&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 	c.recorder = eventBroadcaster.NewRecorder(s, corev1.EventSource{Component: "squad-controller"})
 
 	squadsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -117,8 +119,9 @@ func (c *Controller) Run(workers int, stop <-chan struct{}) error {
 	if !cache.WaitForCacheSync(stop, c.squadSynced, c.gameServerSetSynced) {
 		return errors.New("failed to wait for caches to sync")
 	}
-
-	go wait.Until(c.worker, time.Second, stop)
+	for i := 0; i < workers; i++ {
+		go wait.Until(c.worker, time.Second, stop)
+	}
 	<-stop
 	return nil
 }
@@ -206,7 +209,7 @@ func (c *Controller) syncSquad(key string) error {
 	// Remove this when webhook are supported.
 	c.ensureDefaults(squad)
 
-	gsSetList, err := c.listGameServerSetsBySquadOwner(squad)
+	gsSetList, err := c.listGameServerSetsByOwner(squad)
 	if err != nil {
 		return err
 	}
@@ -254,7 +257,9 @@ func (c *Controller) syncSquad(key string) error {
 }
 
 // getGameServerMapForSquad returns the GameServers managed by a Squad.
-func (c *Controller) getGameServerMapForSquad(squad *carrierv1alpha1.Squad, gsSetList []*carrierv1alpha1.GameServerSet) (map[types.UID][]*carrierv1alpha1.GameServer, error) {
+func (c *Controller) getGameServerMapForSquad(
+	squad *carrierv1alpha1.Squad,
+	gsSetList []*carrierv1alpha1.GameServerSet) (map[types.UID][]*carrierv1alpha1.GameServer, error) {
 	// Get all GameServer that potentially belong to this Squad.
 	gsLst, err := c.listGameServersBySquadOwner(squad)
 	if err != nil {

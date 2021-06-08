@@ -112,12 +112,14 @@ func IsReadinessExist(gs *carrierv1alpha1.GameServer) bool {
 
 // IsBeingDeleted returns true if the server is in the process of being deleted.
 func IsBeingDeleted(gs *carrierv1alpha1.GameServer) bool {
-	return !gs.DeletionTimestamp.IsZero() || gs.Status.State == carrierv1alpha1.GameServerFailed || gs.Status.State == carrierv1alpha1.GameServerExited
+	return !gs.DeletionTimestamp.IsZero() || gs.Status.State == carrierv1alpha1.GameServerFailed ||
+		gs.Status.State == carrierv1alpha1.GameServerExited
 }
 
 // IsBeforeRunning returns if GameServer is not running.
 func IsBeforeRunning(gs *carrierv1alpha1.GameServer) bool {
-	if gs.Status.State == "" || gs.Status.State == carrierv1alpha1.GameServerUnknown || gs.Status.State == carrierv1alpha1.GameServerStarting {
+	if gs.Status.State == "" || gs.Status.State == carrierv1alpha1.GameServerUnknown ||
+		gs.Status.State == carrierv1alpha1.GameServerStarting {
 		return true
 	}
 	return false
@@ -267,6 +269,7 @@ func injectPodScheduling(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 	if gs.Spec.Scheduling == carrierv1alpha1.Default {
 		return
 	}
+
 	if gs.Spec.Scheduling == carrierv1alpha1.LeastAllocated {
 		if pod.Spec.Affinity == nil {
 			pod.Spec.Affinity = &corev1.Affinity{}
@@ -274,17 +277,19 @@ func injectPodScheduling(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 		if pod.Spec.Affinity.PodAntiAffinity == nil {
 			pod.Spec.Affinity.PodAntiAffinity = &corev1.PodAntiAffinity{}
 		}
-
+		antiAffExection := pod.Spec.Affinity.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution
 		term := corev1.WeightedPodAffinityTerm{
 			Weight: 100,
 			PodAffinityTerm: corev1.PodAffinityTerm{
-				TopologyKey:   "kubernetes.io/hostname",
-				LabelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{util.RoleLabelKey: util.GameServerLabelRoleValue}},
+				TopologyKey: "kubernetes.io/hostname",
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{util.RoleLabelKey: util.GameServerLabelRoleValue},
+				},
 			},
 		}
 
-		pod.Spec.Affinity.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(pod.Spec.Affinity.PodAntiAffinity.
-			PreferredDuringSchedulingIgnoredDuringExecution, term)
+		pod.Spec.Affinity.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(antiAffExection,
+			term)
 	}
 	if gs.Spec.Scheduling == carrierv1alpha1.MostAllocated {
 		if pod.Spec.Affinity == nil {
@@ -294,16 +299,18 @@ func injectPodScheduling(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 			pod.Spec.Affinity.PodAffinity = &corev1.PodAffinity{}
 		}
 
+		affExection := pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution
 		term := corev1.WeightedPodAffinityTerm{
 			Weight: 100,
 			PodAffinityTerm: corev1.PodAffinityTerm{
-				TopologyKey:   "kubernetes.io/hostname",
-				LabelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{util.RoleLabelKey: util.GameServerLabelRoleValue}},
+				TopologyKey: "kubernetes.io/hostname",
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{util.RoleLabelKey: util.GameServerLabelRoleValue},
+				},
 			},
 		}
 
-		pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(pod.Spec.Affinity.PodAffinity.
-			PreferredDuringSchedulingIgnoredDuringExecution, term)
+		pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(affExection, term)
 		return
 	}
 }
@@ -495,8 +502,8 @@ func findStaticPorts(gs *carrierv1alpha1.GameServer) []int {
 }
 
 const (
-	Port      = "Port"
-	PortRange = "PortRange"
+	PortType      = "Port"
+	PortRangeType = "PortRange"
 )
 
 func getAllocateType(gs *carrierv1alpha1.GameServer) string {
@@ -508,10 +515,10 @@ func getAllocateType(gs *carrierv1alpha1.GameServer) string {
 			continue
 		}
 		if port.ContainerPort != nil {
-			return Port
+			return PortType
 		}
 		if port.ContainerPortRange != nil {
-			return PortRange
+			return PortRangeType
 		}
 	}
 	return ""

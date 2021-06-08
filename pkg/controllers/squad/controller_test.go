@@ -64,11 +64,13 @@ func newFixture(t *testing.T) *fixture {
 }
 
 func (f *fixture) expectCreateGameServerSetAction(gsSet *carrierv1alpha1.GameServerSet) {
-	f.actions = append(f.actions, core.NewCreateAction(schema.GroupVersionResource{Resource: "gameserversets"}, gsSet.Namespace, gsSet))
+	f.actions = append(f.actions, core.NewCreateAction(
+		schema.GroupVersionResource{Resource: "gameserversets"}, gsSet.Namespace, gsSet))
 }
 
 func (f *fixture) expectUpdateSquadAction(squad *carrierv1alpha1.Squad) {
-	f.actions = append(f.actions, core.NewUpdateAction(schema.GroupVersionResource{Resource: "squads"}, squad.Namespace, squad))
+	f.actions = append(f.actions, core.NewUpdateAction(
+		schema.GroupVersionResource{Resource: "squads"}, squad.Namespace, squad))
 }
 
 func (f *fixture) expectUpdateSquadStatusAction(squad *carrierv1alpha1.Squad) {
@@ -108,7 +110,8 @@ func (f *fixture) runController(squadName string, startInformers bool, expectErr
 		}
 
 		expectedAction := f.actions[i]
-		if !(expectedAction.Matches(action.GetVerb(), action.GetResource().Resource) && action.GetSubresource() == expectedAction.GetSubresource()) {
+		if !(expectedAction.Matches(action.GetVerb(), action.GetResource().Resource) &&
+			action.GetSubresource() == expectedAction.GetSubresource()) {
 			f.t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expectedAction, action)
 			continue
 		}
@@ -198,7 +201,8 @@ func newGameServerSet(squad *carrierv1alpha1.Squad, name string, replicas int) *
 	return gsSet
 }
 
-func newSquad(name string, replicas int, revisionHistoryLimit *int32, maxSurge, maxUnavailable *intstr.IntOrString, selector map[string]string) *carrierv1alpha1.Squad {
+func newSquad(name string, replicas int, revisionHistoryLimit *int32, maxSurge, maxUnavailable *intstr.IntOrString,
+	selector map[string]string) *carrierv1alpha1.Squad {
 	selector[util.SquadNameLabelKey] = name
 	squad := carrierv1alpha1.Squad{
 		TypeMeta: metav1.TypeMeta{APIVersion: carrier.GroupName, Kind: "Squad"},

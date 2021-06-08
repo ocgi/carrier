@@ -61,7 +61,10 @@ func (c *Controller) rolloutRolling(squad *carrierv1alpha1.Squad, gsSetList []*c
 	return c.syncRolloutStatus(allGSSets, newGSSet, squad)
 }
 
-func (c *Controller) reconcileNewGameServerSet(allGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) (bool, error) {
+func (c *Controller) reconcileNewGameServerSet(
+	allGSSets []*carrierv1alpha1.GameServerSet,
+	newGSSet *carrierv1alpha1.GameServerSet,
+	squad *carrierv1alpha1.Squad) (bool, error) {
 	if newGSSet.Spec.Replicas == squad.Spec.Replicas {
 		// Scaling not required.
 		return false, nil
@@ -79,7 +82,11 @@ func (c *Controller) reconcileNewGameServerSet(allGSSets []*carrierv1alpha1.Game
 	return scaled, err
 }
 
-func (c *Controller) reconcileOldGameServerSets(allGSSets []*carrierv1alpha1.GameServerSet, oldGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) (bool, error) {
+func (c *Controller) reconcileOldGameServerSets(
+	allGSSets []*carrierv1alpha1.GameServerSet,
+	oldGSSets []*carrierv1alpha1.GameServerSet,
+	newGSSet *carrierv1alpha1.GameServerSet,
+	squad *carrierv1alpha1.Squad) (bool, error) {
 	oldGameServersCount := GetReplicaCountForGameServerSets(oldGSSets)
 	if oldGameServersCount == 0 {
 		// Can't scale down further
@@ -87,7 +94,10 @@ func (c *Controller) reconcileOldGameServerSets(allGSSets []*carrierv1alpha1.Gam
 	}
 
 	allGameServersCount := GetReplicaCountForGameServerSets(allGSSets)
-	klog.V(4).Infof("New GameServerSet %s/%s has %d ready GameServers.", newGSSet.Namespace, newGSSet.Name, newGSSet.Status.ReadyReplicas)
+	klog.V(4).Infof("New GameServerSet %s/%s has %d ready GameServers.",
+		newGSSet.Namespace,
+		newGSSet.Name,
+		newGSSet.Status.ReadyReplicas)
 	maxUnavailable := MaxUnavailable(*squad)
 	minAvailable := squad.Spec.Replicas - maxUnavailable
 	newGSSetUnreadyGameServerCount := newGSSet.Spec.Replicas - newGSSet.Status.ReadyReplicas
@@ -117,7 +127,10 @@ func (c *Controller) reconcileOldGameServerSets(allGSSets []*carrierv1alpha1.Gam
 
 // scaleDownOldGameServerSetsForRollingUpdate scales down old GameServerSet when Squad strategy is "RollingUpdate".
 // Need check maxUnavailable to ensure availability
-func (c *Controller) scaleDownOldGameServerSetsForRollingUpdate(allGSSets []*carrierv1alpha1.GameServerSet, oldGSSets []*carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) (int32, error) {
+func (c *Controller) scaleDownOldGameServerSetsForRollingUpdate(
+	allGSSets []*carrierv1alpha1.GameServerSet,
+	oldGSSets []*carrierv1alpha1.GameServerSet,
+	squad *carrierv1alpha1.Squad) (int32, error) {
 	maxUnavailable := MaxUnavailable(*squad)
 
 	// Check if we can scale down.
@@ -128,7 +141,9 @@ func (c *Controller) scaleDownOldGameServerSetsForRollingUpdate(allGSSets []*car
 		// Cannot scale down.
 		return 0, nil
 	}
-	klog.V(4).Infof("Found %d available GameServers in Squad %s, scaling down old GSSets", readyGameServerCount, squad.Name)
+	klog.V(4).Infof("Found %d available GameServers in Squad %s, scaling down old GSSets",
+		readyGameServerCount,
+		squad.Name)
 
 	sort.Sort(GameServerSetsByCreationTimestamp(oldGSSets))
 
@@ -144,10 +159,15 @@ func (c *Controller) scaleDownOldGameServerSetsForRollingUpdate(allGSSets []*car
 			continue
 		}
 		// Scale down.
-		scaleDownCount := int32(integer.IntMin(int(targetGSSet.Spec.Replicas), int(totalScaleDownCount-totalScaledDown)))
+		scaleDownCount := int32(integer.IntMin(int(targetGSSet.Spec.Replicas),
+			int(totalScaleDownCount-totalScaledDown)))
 		newReplicasCount := targetGSSet.Spec.Replicas - scaleDownCount
 		if newReplicasCount > targetGSSet.Spec.Replicas {
-			return 0, fmt.Errorf("when scaling down old GSSet, got invalid request to scale down %s/%s %d -> %d", targetGSSet.Namespace, targetGSSet.Name, targetGSSet.Spec.Replicas, newReplicasCount)
+			return 0, fmt.Errorf("when scaling down old GSSet, got invalid request to scale down %s/%s %d -> %d",
+				targetGSSet.Namespace,
+				targetGSSet.Name,
+				targetGSSet.Spec.Replicas,
+				newReplicasCount)
 		}
 		_, _, err := c.scaleGameServerSetAndRecordEvent(targetGSSet, newReplicasCount, squad)
 		if err != nil {

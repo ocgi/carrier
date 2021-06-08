@@ -93,13 +93,15 @@ func NewController(
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
+	eventBroadcaster.StartRecordingToSink(
+		&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 	c.recorder = eventBroadcaster.NewRecorder(s, corev1.EventSource{Component: "gameserver-controller"})
 
-	c.queue = workqueue.NewRateLimitingQueue(workqueue.NewItemFastSlowRateLimiter(20*time.Millisecond, 500*time.Millisecond, 5))
+	c.queue = workqueue.NewRateLimitingQueue(
+		workqueue.NewItemFastSlowRateLimiter(20*time.Millisecond, 500*time.Millisecond, 5))
 	c.nodeTaintWorkQueue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	gsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.enqueueGamServer,
+		AddFunc:    c.addGamServer,
 		UpdateFunc: c.updateGamServer,
 		DeleteFunc: c.deleteGamServer,
 	})
@@ -111,9 +113,10 @@ func NewController(
 			if isGameServerPod(oldPod) {
 				// pod scheduled
 				// container status change
-				if oldPod.Spec.NodeName != newPod.Spec.NodeName || !reflect.DeepEqual(oldPod.Status.ContainerStatuses, newPod.Status.ContainerStatuses) {
+				if oldPod.Spec.NodeName != newPod.Spec.NodeName ||
+					!reflect.DeepEqual(oldPod.Status.ContainerStatuses, newPod.Status.ContainerStatuses) {
 					owner := metav1.GetControllerOf(newPod)
-					c.enqueueGamServer(cache.ExplicitKey(newPod.Namespace + "/" + owner.Name))
+					c.addGamServer(cache.ExplicitKey(newPod.Namespace + "/" + owner.Name))
 				}
 			}
 		},
@@ -124,50 +127,22 @@ func NewController(
 			}
 			if isGameServerPod(pod) {
 				owner := metav1.GetControllerOf(pod)
-				c.enqueueGamServer(cache.ExplicitKey(pod.Namespace + "/" + owner.Name))
+				c.addGamServer(cache.ExplicitKey(pod.Namespace + "/" + owner.Name))
 			}
 		},
 	})
 
-	nodeInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
-		FilterFunc: func(obj interface{}) bool {
-			node, ok := obj.(*corev1.Node)
-			if !ok {
-				return false
-			}
-			if !checkNodeTaintByCA(node) {
-				return false
-			}
-			return true
-		},
-		Handler: cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				node := obj.(*corev1.Node)
-				if !checkNodeTaintByCA(node) {
-					return
-				}
-				c.enqueueNode(node)
-			},
-			UpdateFunc: func(oldObj, newObj interface{}) {
-				oldNode, ok := oldObj.(*corev1.Node)
-				if !ok {
-					return
-				}
-				newNode := newObj.(*corev1.Node)
-				// old node does not have the taint
-				// new node have the taint.
-				if checkNodeTaintByCA(oldNode) || !checkNodeTaintByCA(newNode) {
-					return
-				}
-				c.enqueueNode(newNode)
-			},
-			DeleteFunc: c.deleteNode,
-		},
+	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.addNode,
+		UpdateFunc: c.updateNode,
+		DeleteFunc: c.deleteNode,
 	})
 
 	return c
 }
 
+// syncNodeTaint adds constraint to GameServers if a node will
+// be scaled down/deleted
 func (c *Controller) syncNodeTaint(nodeName string) error {
 	klog.Infof("Sync node taint %v", nodeName)
 	fieldSelector, err := fields.ParseSelector("spec.nodeName=" + nodeName)
@@ -205,23 +180,18 @@ func (c *Controller) syncNodeTaint(nodeName string) error {
 	return nil
 }
 
-// obj could be a GamServer, or a DeletionFinalStateUnknown marker item.
-func (c *Controller) updateGamServer(old, cur interface{}) {
-	c.enqueueGamServer(cur)
-}
-
-// obj could be a GamServer, or a DeletionFinalStateUnknown marker item.
-func (c *Controller) enqueueGamServer(obj interface{}) {
+func (c *Controller) addGamServer(obj interface{}) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %+v: %v", obj, err))
 		return
 	}
 
-	// Requests are always added to queue with resyncPeriod delay.  If there's already
-	// request for the Squad in the queue then c new request is always dropped. Requests spend resync
-	// interval in queue so Squads are processed every resync interval.
 	c.queue.AddRateLimited(key)
+}
+
+func (c *Controller) updateGamServer(old, cur interface{}) {
+	c.addGamServer(cur)
 }
 
 func (c *Controller) deleteGamServer(obj interface{}) {
@@ -233,23 +203,33 @@ func (c *Controller) deleteGamServer(obj interface{}) {
 	c.queue.Forget(key)
 }
 
-// obj could be a Node, or a DeletionFinalStateUnknown marker item.
-func (c *Controller) updateNode(old, cur interface{}) {
-	c.enqueueGamServer(cur)
-}
-
-// obj could be a Node, or a DeletionFinalStateUnknown marker item.
-func (c *Controller) enqueueNode(obj interface{}) {
+func (c *Controller) addNode(obj interface{}) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %+v: %v", obj, err))
 		return
 	}
 
-	// Requests are always added to queue with resyncPeriod delay.  If there's already
-	// request for the Squad in the queue then c new request is always dropped. Requests spend resync
-	// interval in queue so Squads are processed every resync interval.
+	node := obj.(*corev1.Node)
+	if !checkNodeTaintByCA(node) {
+		return
+	}
+
 	c.nodeTaintWorkQueue.AddRateLimited(key)
+}
+
+func (c *Controller) updateNode(old, cur interface{}) {
+	oldNode, ok := old.(*corev1.Node)
+	if !ok {
+		return
+	}
+	newNode := cur.(*corev1.Node)
+	// old node does not have the taint
+	// new node have the taint.
+	if checkNodeTaintByCA(oldNode) || !checkNodeTaintByCA(newNode) {
+		return
+	}
+	c.addNode(newNode)
 }
 
 func (c *Controller) deleteNode(obj interface{}) {
@@ -302,13 +282,16 @@ func (c *Controller) Run(workers int, stop <-chan struct{}) error {
 	}
 
 	c.syncPortAllocated()
-
-	go wait.Until(c.gsWorker, time.Second, stop)
-	go wait.Until(c.nodeWorker, time.Second, stop)
+	for i := 0; i < workers; i++ {
+		go wait.Until(c.gsWorker, time.Second, stop)
+		go wait.Until(c.nodeWorker, time.Second, stop)
+	}
 	<-stop
 	return nil
 }
 
+// syncPortAllocated will lister GameServer and Ports that have allocated.
+// this should run before we start sync works
 func (c *Controller) syncPortAllocated() {
 	gsList, err := c.gameServerLister.GameServers(corev1.NamespaceAll).List(labels.Everything())
 	if err != nil {
@@ -364,7 +347,8 @@ func (c *Controller) syncGameServer(key string) error {
 
 // syncGameServerDeletionTimestamp if the deletion timestamp is non-zero
 // - if there are no pods or terminating, remove the finalizer
-func (c *Controller) syncGameServerDeletionTimestamp(gs *carrierv1alpha1.GameServer) (*carrierv1alpha1.GameServer, error) {
+func (c *Controller) syncGameServerDeletionTimestamp(gs *carrierv1alpha1.GameServer) (*carrierv1alpha1.GameServer,
+	error) {
 	klog.V(4).Infof("Sync deletion timestamp for GameServer: %v", gs.Name)
 	if gs.DeletionTimestamp == nil {
 		return gs, nil
@@ -376,9 +360,11 @@ func (c *Controller) syncGameServerDeletionTimestamp(gs *carrierv1alpha1.GameSer
 
 	if pod != nil && pod.DeletionTimestamp == nil {
 		if err = c.kubeClient.CoreV1().Pods(pod.Namespace).Delete(pod.Name, &metav1.DeleteOptions{}); err != nil {
-			return gs, errors.Wrapf(err, "error deleting pod for GameServer. Name: %s, Namespace: %s", gs.Name, pod.Namespace)
+			return gs, errors.Wrapf(err,
+				"error deleting pod for GameServer. Name: %s, Namespace: %s", gs.Name, pod.Namespace)
 		}
-		c.recorder.Event(gs, corev1.EventTypeNormal, string(gs.Status.State), fmt.Sprintf("Deleting Pod %s", pod.Name))
+		c.recorder.Event(gs, corev1.EventTypeNormal, string(gs.Status.State),
+			fmt.Sprintf("Deleting Pod %s", pod.Name))
 	}
 
 	var fin []string
@@ -416,7 +402,7 @@ func (c *Controller) tryAllocatePorts(gs *carrierv1alpha1.GameServer) (*carrierv
 		staticPorts := findStaticPorts(gs)
 		c.portAllocator.SetUsed(getOwner(gsCopy), string(gs.UID), staticPorts)
 		return gs, nil
-	case Port:
+	case PortType:
 		number := findDynamicPortNumber(gsCopy)
 		ports, err = c.portAllocator.Allocate(getOwner(gsCopy), string(gs.UID), number, false)
 		if err != nil {
@@ -424,7 +410,7 @@ func (c *Controller) tryAllocatePorts(gs *carrierv1alpha1.GameServer) (*carrierv
 			return gs, err
 		}
 		setHostPort(gsCopy, ports)
-	case PortRange:
+	case PortRangeType:
 		cpr := gs.Spec.Ports[0].ContainerPortRange
 		number := int(cpr.MaxPort - cpr.MinPort + 1)
 		ports, err = c.portAllocator.Allocate(getOwner(gsCopy), string(gs.UID), number, true)
@@ -439,7 +425,7 @@ func (c *Controller) tryAllocatePorts(gs *carrierv1alpha1.GameServer) (*carrierv
 	if err == nil {
 		return gs, nil
 	}
-	c.portAllocator.Release(getOwner(gsCopy), string(gs.UID), ports)
+	c.portAllocator.Release(getOwner(gsCopy), string(gsCopy.UID), ports)
 	klog.Errorf("Write back port to api failed: %v", err)
 	return gs, err
 }
@@ -459,7 +445,6 @@ func (c *Controller) syncGameServerStartingState(gs *carrierv1alpha1.GameServer)
 	if !IsDynamicPortAllocated(gs) && findDynamicPortNumber(gs) > 0 {
 		return gs, nil
 	}
-	// Maybe something went wrong, and the pod was created, but the state was never moved to Starting, so let's check
 	pod, err := c.getGameServerPod(gs)
 	if k8serrors.IsNotFound(err) {
 		klog.V(4).Infof("Start creating pod for GameServer:%v", gs.Name)
@@ -560,16 +545,19 @@ func (c *Controller) syncGameServerRunningState(gs *carrierv1alpha1.GameServer) 
 	}
 	klog.V(4).Infof("Game server %v status: %v", gs.Name, gs.Status.State)
 	if updated {
-		c.recorder.Event(gs, corev1.EventTypeNormal, string(gs.Status.State), "Address and port populated")
+		c.recorder.Event(gs, corev1.EventTypeNormal, string(gs.Status.State),
+			"Address and port populated")
 	}
 	if gs.Status.State == carrierv1alpha1.GameServerRunning {
-		c.recorder.Event(gs, corev1.EventTypeNormal, string(gs.Status.State), "Waiting for receiving readiness message")
+		c.recorder.Event(gs, corev1.EventTypeNormal, string(gs.Status.State),
+			"Waiting for receiving readiness message")
 	}
 	return gs, nil
 }
 
 // removeConstraintsFromGameServer removes constraints from GameServer migrated.
-func (c *Controller) removeConstraintsFromGameServer(gs *carrierv1alpha1.GameServer) (*carrierv1alpha1.GameServer, error) {
+func (c *Controller) removeConstraintsFromGameServer(gs *carrierv1alpha1.GameServer) (*carrierv1alpha1.GameServer,
+	error) {
 	constraints := make([]carrierv1alpha1.Constraint, 0)
 	for _, constraint := range gs.Spec.Constraints {
 		if constraint.Type == carrierv1alpha1.NotInService {
@@ -589,7 +577,8 @@ func (c *Controller) createGameServerPod(gs *carrierv1alpha1.GameServer) (*carri
 	pod, err := buildPod(gs)
 	if err != nil {
 		// this shouldn't happen, but if it does.
-		c.recorder.Eventf(gs, corev1.EventTypeWarning, string(gs.Status.State), "build Pod for GameServer %s", gs.Name)
+		c.recorder.Eventf(gs, corev1.EventTypeWarning, string(gs.Status.State),
+			"build Pod for GameServer %s", gs.Name)
 		return gs, errors.Wrapf(err, "error building Pod for GameServer %s", gs.Name)
 	}
 
@@ -602,7 +591,8 @@ func (c *Controller) createGameServerPod(gs *carrierv1alpha1.GameServer) (*carri
 			return gs, nil
 		default:
 			klog.Errorf("Pod err: %v", err)
-			c.recorder.Eventf(gs, corev1.EventTypeWarning, string(gs.Status.State), "error creating Pod for GameServer %s: %v", gs.Name, err)
+			c.recorder.Eventf(gs, corev1.EventTypeWarning, string(gs.Status.State),
+				"error creating Pod for GameServer %s: %v", gs.Name, err)
 			return gs, errors.Wrapf(err, "error creating Pod for GameServer %s: %v", gs.Name, err)
 		}
 	}
@@ -633,7 +623,8 @@ func (c *Controller) getGameServerPod(gs *carrierv1alpha1.GameServer) (*corev1.P
 	return pod, nil
 }
 
-func (c *Controller) reconcileGameServerAddress(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) (*carrierv1alpha1.GameServer, bool, error) {
+func (c *Controller) reconcileGameServerAddress(gs *carrierv1alpha1.GameServer,
+	pod *corev1.Pod) (*carrierv1alpha1.GameServer, bool, error) {
 	updated := false
 	if gs.Status.NodeName == "" || gs.Status.Address == "" {
 		updated = true
@@ -684,6 +675,8 @@ func (c *Controller) reconcileGameServerState(gs *carrierv1alpha1.GameServer, po
 	return
 }
 
+// AddNotInServiceConstraint will add `NotInService` constraint
+// to GameServer Spec.
 func AddNotInServiceConstraint(gs *carrierv1alpha1.GameServer) {
 	constraints := gs.Spec.Constraints
 	notInService := NotInServiceConstraint()

@@ -15,14 +15,30 @@ rules:
       - nodes
       - pods
       - events
+      - leases
+      - endpoints
     verbs:
       - "*"
   - apiGroups:
-      - "carrier.ocgi.dev"
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - watch
+      - get
+      - list
+  - apiGroups:
+      - carrier.ocgi.dev
     resources:
       - "*"
     verbs:
       - "*"
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

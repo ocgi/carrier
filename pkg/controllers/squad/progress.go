@@ -30,14 +30,20 @@ import (
 // cases this helper will run that cannot be prevented from the scaling detection,
 // for example a resync of the Squad after it was scaled up. In those cases,
 // we shouldn't try to estimate any progress.
-func (c *Controller) syncRolloutStatus(allGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carrierv1alpha1.GameServerSet, squad *carrierv1alpha1.Squad) error {
+func (c *Controller) syncRolloutStatus(
+	allGSSets []*carrierv1alpha1.GameServerSet,
+	newGSSet *carrierv1alpha1.GameServerSet,
+	squad *carrierv1alpha1.Squad) error {
 	newStatus := calculateStatus(allGSSets, newGSSet, squad)
-	klog.V(4).Infof("sync squad status: name: %v, spec: %v, status: %+v", squad.ObjectMeta, squad.Spec, newStatus)
+	klog.V(4).Infof("sync squad status: name: %v, spec: %v, status: %+v",
+		squad.ObjectMeta, squad.Spec, newStatus)
 	// If there is only one GameServerSet that is active then that means we are not running
 	// a new rollout and this is a resync where we don't need to estimate any progress.
 	// In such a case, we should simply not estimate any progress for this Squad.
 	currentCond := GetSquadCondition(squad.Status, carrierv1alpha1.SquadProgressing)
-	isCompleteSquad := newStatus.Replicas == newStatus.UpdatedReplicas && currentCond != nil && currentCond.Reason == util.NewGSSetReadyReason
+	isCompleteSquad := newStatus.Replicas == newStatus.UpdatedReplicas &&
+		currentCond != nil &&
+		currentCond.Reason == util.NewGSSetReadyReason
 	// Check for progress only if there is a progress deadline set and the latest rollout
 	// hasn't completed yet.
 	if !isCompleteSquad {
@@ -49,7 +55,8 @@ func (c *Controller) syncRolloutStatus(allGSSets []*carrierv1alpha1.GameServerSe
 			if newGSSet != nil {
 				msg = fmt.Sprintf("GameServerSet %q has successfully progressed.", newGSSet.Name)
 			}
-			condition := NewSquadCondition(carrierv1alpha1.SquadProgressing, corev1.ConditionTrue, util.NewGSSetReadyReason, msg)
+			condition := NewSquadCondition(carrierv1alpha1.SquadProgressing,
+				corev1.ConditionTrue, util.NewGSSetReadyReason, msg)
 			SetSquadCondition(&newStatus, *condition)
 		case SquadProgressing(squad, &newStatus):
 			// If there is any progress made, continue by not checking if the Squad failed. This
@@ -58,7 +65,11 @@ func (c *Controller) syncRolloutStatus(allGSSets []*carrierv1alpha1.GameServerSe
 			if newGSSet != nil {
 				msg = fmt.Sprintf("GameServerSet %q is progressing.", newGSSet.Name)
 			}
-			condition := NewSquadCondition(carrierv1alpha1.SquadProgressing, corev1.ConditionTrue, util.GameServerSetUpdatedReason, msg)
+			condition := NewSquadCondition(
+				carrierv1alpha1.SquadProgressing,
+				corev1.ConditionTrue,
+				util.GameServerSetUpdatedReason,
+				msg)
 			if currentCond != nil {
 				if currentCond.Status == corev1.ConditionTrue {
 					condition.LastTransitionTime = currentCond.LastTransitionTime
@@ -91,7 +102,9 @@ func (c *Controller) syncRolloutStatus(allGSSets []*carrierv1alpha1.GameServerSe
 
 // getReplicaFailures will convert replica failure conditions from GameServerSets
 // to Squad conditions.
-func (c *Controller) getReplicaFailures(allGSSets []*carrierv1alpha1.GameServerSet, newGSSet *carrierv1alpha1.GameServerSet) []carrierv1alpha1.SquadCondition {
+func (c *Controller) getReplicaFailures(
+	allGSSets []*carrierv1alpha1.GameServerSet,
+	newGSSet *carrierv1alpha1.GameServerSet) []carrierv1alpha1.SquadCondition {
 	var conditions []carrierv1alpha1.SquadCondition
 	if newGSSet != nil {
 		for _, c := range newGSSet.Status.Conditions {
