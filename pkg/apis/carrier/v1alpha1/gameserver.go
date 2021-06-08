@@ -174,13 +174,13 @@ const (
 // GameServerStatus is the status for a GameServer resource.
 type GameServerStatus struct {
 	// GameServerState is the current state of a GameServer, e.g. Pending, Running, Succeeded, etc
-	State GameServerState `json:"state"`
+	State GameServerState `json:"state,omitempty"`
 	// Conditions represent GameServer conditions
 	Conditions []GameServerCondition `json:"conditions,omitempty"`
 	// Address is the IP address of GameServer
-	Address string `json:"address"`
+	Address string `json:"address,omitempty"`
 	// NodeName is the K8s node name
-	NodeName string `json:"nodeName"`
+	NodeName string `json:"nodeName,omitempty"`
 	// LoadBalancerStatus is the load-balancer status
 	LoadBalancerStatus *LoadBalancerStatus `json:"loadBalancerStatus,omitempty"`
 }
