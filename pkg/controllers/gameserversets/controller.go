@@ -395,7 +395,7 @@ func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error
 	// updated is from api(source of truth).
 	// make sure update GameServerSet success or failed after retry.
 	// if retry failed, make sure the cache has synced.
-	err = wait.PollImmediate(50*time.Second, 1*time.Second, func() (done bool, err error) {
+	err = wait.PollImmediate(50*time.Millisecond, 1*time.Second, func() (done bool, err error) {
 		gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = strconv.Itoa(int(updated + updatedCount))
 		_, err = c.carrierClient.CarrierV1alpha1().GameServerSets(gsSet.Namespace).Update(gsSet)
 		if err == nil {

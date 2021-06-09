@@ -15,9 +15,12 @@
 package squad
 
 import (
+	"k8s.io/klog"
+	"time"
+
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/klog"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
 	"github.com/ocgi/carrier/pkg/util"
@@ -69,10 +72,21 @@ func (c *Controller) rolloutInplace(squad *carrierv1alpha1.Squad, gsSetList []*c
 		return c.syncRolloutStatus(allGSSet, newGSSet, squad)
 	}
 	if SquadComplete(squad, &squad.Status) {
-		if err := c.cleanupGameServerSet(newGSSet); err != nil {
+		// We need to update squad first.
+		// Fix the wrong status:
+		// when the GameServerSet update is successful but squad update fails,
+		// the annotations of GameServerSet will be reset in the next synchronization.
+		if err := c.clearInplaceUpdateStrategy(squad); err != nil {
 			return err
 		}
-		if err := c.clearInplaceUpdateStrategy(squad); err != nil {
+		// Make sure update GameServerSet annotations success or failed after retry.
+		if err = wait.PollImmediate(50*time.Millisecond, 1*time.Second, func() (done bool, err error) {
+			updateErr := c.cleanupGameServerSet(newGSSet)
+			if updateErr == nil {
+				return true, nil
+			}
+			return false, err
+		}); err != nil {
 			return err
 		}
 	}
