@@ -15,7 +15,6 @@ rules:
       - nodes
       - pods
       - events
-      - leases
       - endpoints
     verbs:
       - "*"
@@ -24,9 +23,7 @@ rules:
     resources:
       - leases
     verbs:
-      - watch
-      - get
-      - list
+      - "*"
   - apiGroups:
       - carrier.ocgi.dev
     resources:
