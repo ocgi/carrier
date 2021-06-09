@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	apiv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	ext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,14 +36,12 @@ import (
 	"k8s.io/klog"
 
 	"github.com/ocgi/carrier/cmd/controller/app"
-	"github.com/ocgi/carrier/pkg/apis/carrier"
 	carrierclient "github.com/ocgi/carrier/pkg/client/clientset/versioned"
 	carrierinformer "github.com/ocgi/carrier/pkg/client/informers/externalversions"
 	"github.com/ocgi/carrier/pkg/controllers"
 	"github.com/ocgi/carrier/pkg/controllers/gameservers"
 	"github.com/ocgi/carrier/pkg/controllers/gameserversets"
 	"github.com/ocgi/carrier/pkg/controllers/squad"
-	"github.com/ocgi/carrier/pkg/util/crd"
 	"github.com/ocgi/carrier/pkg/version"
 )
 
@@ -166,9 +165,21 @@ func isCRDReady(client v1beta1.CustomResourceDefinitionInterface) bool {
 		wg.Add(1)
 		go func(crdName string) {
 			defer wg.Done()
-			err := crd.WaitForEstablishedCRD(client, fmt.Sprintf("%s.%s", crdName, carrier.GroupName))
+			crd, err := client.Get(crdName, metav1.GetOptions{})
 			if err != nil {
 				errs = append(errs, err)
+				return
+			}
+			found := false
+			for _, cond := range crd.Status.Conditions {
+				if cond.Type == apiv1beta1.Established &&
+					cond.Status == apiv1beta1.ConditionTrue {
+					found = true
+					return
+				}
+			}
+			if !found {
+				errs = append(errs, fmt.Errorf("crd %v is not ready now", crdName))
 			}
 		}(crdName)
 	}
