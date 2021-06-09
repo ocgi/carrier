@@ -85,7 +85,7 @@ func (c *Controller) rolloutInplace(squad *carrierv1alpha1.Squad, gsSetList []*c
 			if updateErr == nil {
 				return true, nil
 			}
-			return false, err
+			return false, nil
 		}); err != nil {
 			return err
 		}
