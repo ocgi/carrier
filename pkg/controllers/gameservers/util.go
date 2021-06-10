@@ -46,9 +46,7 @@ func ApplyDefaults(gs *carrierv1alpha1.GameServer) {
 // ApplyDefaults applies default values to the GameServerSpec if they are not already populated
 func applySpecDefaults(gs *carrierv1alpha1.GameServer) {
 	gss := &gs.Spec
-	if isHostPortNetwork(gss) {
-		applyPortDefaults(gss)
-	}
+	applyPortDefaults(gss)
 	applySchedulingDefaults(gss)
 }
 
@@ -57,7 +55,7 @@ func applyPortDefaults(gss *carrierv1alpha1.GameServerSpec) {
 	for i, p := range gss.Ports {
 		// basic spec
 		if p.PortPolicy == "" {
-			gss.Ports[i].PortPolicy = carrierv1alpha1.LoaderBalancer
+			gss.Ports[i].PortPolicy = carrierv1alpha1.LoadBalancer
 		}
 
 		if p.Protocol == "" {
@@ -198,7 +196,7 @@ func buildPod(gs *carrierv1alpha1.GameServer) (*corev1.Pod, error) {
 	}
 
 	podObjectMeta(gs, pod)
-	if isHostPortNetwork(&gs.Spec) || len(findPorts(gs)) > 0 {
+	if len(findPorts(gs)) > 0 {
 		i, gsContainer, err := FindContainer(&gs.Spec, util.GameServerContainerName)
 		if err != nil {
 			return pod, err
@@ -394,7 +392,7 @@ func NotInServiceConstraint() carrierv1alpha1.Constraint {
 // IsLoadBalancerPortExist check if a GameServer requires Load Balancer.
 func IsLoadBalancerPortExist(gs *carrierv1alpha1.GameServer) bool {
 	for _, port := range gs.Spec.Ports {
-		if port.PortPolicy == carrierv1alpha1.LoaderBalancer {
+		if port.PortPolicy == carrierv1alpha1.LoadBalancer {
 			return true
 		}
 	}
@@ -453,7 +451,7 @@ func findPorts(gs *carrierv1alpha1.GameServer) []int {
 		return ports
 	}
 	for _, port := range gs.Spec.Ports {
-		if port.PortPolicy == carrierv1alpha1.LoaderBalancer {
+		if port.PortPolicy == carrierv1alpha1.LoadBalancer {
 			continue
 		}
 		if port.HostPort != nil {
@@ -538,7 +536,7 @@ func setHostPort(gs *carrierv1alpha1.GameServer, ports []int) {
 
 func setHostPortRange(gs *carrierv1alpha1.GameServer, ports []int) {
 	for i, port := range gs.Spec.Ports {
-		if port.PortPolicy == carrierv1alpha1.LoaderBalancer {
+		if port.PortPolicy == carrierv1alpha1.LoadBalancer {
 			continue
 		}
 		if port.ContainerPortRange != nil {
