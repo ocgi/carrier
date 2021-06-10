@@ -434,6 +434,9 @@ func (c *Controller) tryAllocatePorts(gs *carrierv1alpha1.GameServer) (*carrierv
 // creates a Pod for the GameServer and moves the state to Starting
 func (c *Controller) syncGameServerStartingState(gs *carrierv1alpha1.GameServer) (*carrierv1alpha1.GameServer, error) {
 	klog.V(4).Infof("Start sync start state for: %v", gs.Name)
+	if IsBeingDeleted(gs) {
+		return gs, nil
+	}
 	if !gs.DeletionTimestamp.IsZero() {
 		return gs, nil
 	}

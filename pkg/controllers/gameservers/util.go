@@ -116,6 +116,12 @@ func IsBeingDeleted(gs *carrierv1alpha1.GameServer) bool {
 		gs.Status.State == carrierv1alpha1.GameServerExited
 }
 
+// IsStopped returns true if the server is failed or exited
+func IsStopped(gs *carrierv1alpha1.GameServer) bool {
+	return gs.Status.State == carrierv1alpha1.GameServerFailed ||
+		gs.Status.State == carrierv1alpha1.GameServerExited
+}
+
 // IsBeforeRunning returns if GameServer is not running.
 func IsBeforeRunning(gs *carrierv1alpha1.GameServer) bool {
 	if gs.Status.State == "" || gs.Status.State == carrierv1alpha1.GameServerUnknown ||

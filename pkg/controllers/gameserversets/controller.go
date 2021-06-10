@@ -452,11 +452,11 @@ func (c *Controller) computeReconciliationAction(gsSet *carrierv1alpha1.GameServ
 	var potentialDeletions, toDeleteGameServers []*carrierv1alpha1.GameServer
 	for _, gs := range list {
 		// GS being deleted don't count.
-		if gameservers.IsBeingDeleted(gs) {
+		if gs.DeletionTimestamp != nil {
 			continue
 		}
 		switch gs.Status.State {
-		case "", carrierv1alpha1.GameServerStarting:
+		case "", carrierv1alpha1.GameServerUnknown, carrierv1alpha1.GameServerStarting:
 			upCount++
 		case carrierv1alpha1.GameServerRunning:
 			// GameServer has constraint but may still have player.
@@ -472,11 +472,14 @@ func (c *Controller) computeReconciliationAction(gsSet *carrierv1alpha1.GameServ
 				klog.V(4).Infof("GameServer %v is out of service and and ready to be delete", gs.Name)
 				klog.V(5).Infof("GameServer annotations: %v, label: %v, condition: %+v",
 					gs.Annotations, gs.Labels, gs.Status.Conditions)
+				continue
 			} else {
 				upCount++
 			}
 		default:
-			klog.Infof("Unknown state")
+			toDeleteGameServers = append(toDeleteGameServers, gs)
+			klog.Infof("GS state: %v", gs.Status.State)
+			continue
 		}
 		potentialDeletions = append(potentialDeletions, gs)
 	}
@@ -785,10 +788,10 @@ func classifyGameServers(toDelete []*carrierv1alpha1.GameServer, updating bool) 
 	deletables, deleteCandidates, runnings []*carrierv1alpha1.GameServer) {
 	var inPlaceUpdatings, notReadys []*carrierv1alpha1.GameServer
 	for _, gs := range toDelete {
-		if gameservers.IsBeingDeleted(gs) {
-			continue
-		}
 		switch {
+		// GameServer Exit or Failed should delete.
+		case gameservers.IsStopped(gs):
+			deletables = append(deletables, gs)
 		case gameservers.IsInPlaceUpdating(gs):
 			if updating {
 				inPlaceUpdatings = append(inPlaceUpdatings, gs)
