@@ -295,7 +295,7 @@ func (c *Controller) syncGameServerSet(key string) error {
 func (c *Controller) manageReplicas(key string, list []*carrierv1alpha1.GameServer,
 	gsSet *carrierv1alpha1.GameServerSet) error {
 	klog.Infof("Current GameServer number of GameServerSet %v: %v", key, len(list))
-	gameServersToAdd, toDeleteList, exceedBurst := c.computeReconciliationAction(gsSet, list, c.counter)
+	gameServersToAdd, toDeleteList, exceedBurst := computeExpectation(gsSet, list, c.counter)
 	status := computeStatus(list, gsSet)
 	klog.V(5).Infof("Reconciling GameServerSet name: %v, spec: %v, status: %v", key, gsSet.Spec, status)
 	if exceedBurst {
@@ -441,9 +441,12 @@ func (c *Controller) getOldAndNewReplicas(gsSet *carrierv1alpha1.GameServerSet) 
 	return oldGameServers, newGameServers, nil
 }
 
-// computeReconciliationAction computes the action to take to reconcile a GameServerSet set given
-// the list of game servers that were found and target replica count.
-func (c *Controller) computeReconciliationAction(gsSet *carrierv1alpha1.GameServerSet,
+// computeExpectation computes what we should do, add more GameServers or delete GameServers?
+// if toAdd > 0, we will add `toAdd` GameServers,if toDeleteGameServers, we will try to delete GameServers.
+// there is chance that toAdd > 0 and len(toDeleteGameServers).
+// This will happen when some `GameServers` stopped and have not been deleted. When these GameServers deleted,
+// we will reconcile and add more `GameServers`, which will not affect the final results.
+func computeExpectation(gsSet *carrierv1alpha1.GameServerSet,
 	list []*carrierv1alpha1.GameServer, counts *Counter) (int, []*carrierv1alpha1.GameServer, bool) {
 	scaling := IsGameServerSetScaling(gsSet)
 	excludeConstraintGS := excludeConstraints(gsSet)

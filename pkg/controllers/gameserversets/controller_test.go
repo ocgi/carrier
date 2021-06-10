@@ -17,6 +17,7 @@ package gameserversets
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -101,7 +102,103 @@ func TestControllerSyncGameServerSet(t *testing.T) {
 				filtered = append(filtered, &gs)
 			}
 			if len(filtered) != int(testCase.desireReplicas) {
-				t.Errorf("Current GameServers: %v, desired: %v", len(filtered), testCase.desireReplicas)
+				t.Errorf("Current GameServers: %+v, desired: %+v", len(filtered), testCase.desireReplicas)
+			}
+		})
+	}
+}
+
+func TestComputeExpectation(t *testing.T) {
+	testCases := []struct {
+		name     string
+		gsLister []*v1alpha1.GameServer
+		gsSet    *v1alpha1.GameServerSet
+		toAdd    int
+		toDelete []*v1alpha1.GameServer
+	}{
+		{
+			name:     "gsSet spec replicas, satisfied",
+			gsLister: gsOwnered2Running(),
+			gsSet:    withReplicas(2, gss()),
+			toAdd:    0,
+			toDelete: nil,
+		},
+		{
+			name:     "gsSet spec replicas, 1 to add, 1 to delete(stopped)",
+			gsLister: gsOwnered1Running1Exit(),
+			gsSet:    withReplicas(2, gss()),
+			toAdd:    1,
+			toDelete: []*v1alpha1.GameServer{gsOwnered1Running1Exit()[1]},
+		},
+		{
+			name:     "gsSet spec replicas, 0 to add, 1 to delete(stopped)",
+			gsLister: gsOwnered2Running1Exit(),
+			gsSet:    withReplicas(2, gss()),
+			toAdd:    0,
+			toDelete: []*v1alpha1.GameServer{gsOwnered2Running1Exit()[2]},
+		},
+		{
+			name:     "gsSet spec replicas, 0 to add, 1 to delete(deletablable)",
+			gsLister: gsOwnered2Running1Deletable(),
+			gsSet:    withReplicas(2, gss()),
+			toAdd:    0,
+			toDelete: []*v1alpha1.GameServer{gsOwnered2Running1Deletable()[2]},
+		},
+
+		{
+			name:     "gsSet spec replicas, 1 to add, 1 out of service, exclude constraint true",
+			gsLister: gsOwnered1Running1OutofService(),
+			gsSet:    withExclude(true, withReplicas(2, gss())),
+			toAdd:    1,
+			toDelete: nil,
+		},
+		{
+			name:     "gsSet spec replicas, 1 to add, 1 out of service, exclude constraint false",
+			gsLister: gsOwnered1Running1OutofService(),
+			gsSet:    withReplicas(2, gss()),
+			toAdd:    0,
+			toDelete: nil,
+		},
+		{
+			name: "gsSet spec replicas, 1 to add, 1 out of service, exclude constraint true, 1 inplace updatint, " +
+				"true",
+			gsLister: gsOwnered1Running1OutofServiceInplace(),
+			gsSet:    withExclude(true, withReplicas(2, gss())),
+			toAdd:    0,
+			toDelete: nil,
+		},
+		{
+			name:     "gsSet spec replicas, 1 to be candidate",
+			gsLister: gsOwnered3RunningCandidate(),
+			gsSet:    withReplicas(2, gss()),
+			toAdd:    0,
+			toDelete: []*v1alpha1.GameServer{gsOwnered3RunningCandidate()[2]},
+		},
+		{
+			name:     "gsSet spec replicas, 1 to be candidate",
+			gsLister: gsOwnered3RunningCandidate(),
+			gsSet:    withReplicas(2, gss()),
+			toAdd:    0,
+			toDelete: []*v1alpha1.GameServer{gsOwnered3RunningCandidate()[2]},
+		},
+		{
+			name:     "gsSet spec replicas, 1 to be candidate, cost",
+			gsLister: gsOwnered3RunningCandidateCost(),
+			gsSet:    withReplicas(2, gss()),
+			toAdd:    0,
+			toDelete: []*v1alpha1.GameServer{gsOwnered3RunningCandidateCost()[0]},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			toAdd, toDelete, _ := computeExpectation(testCase.gsSet, testCase.gsLister, &Counter{
+				nodeGameServer: map[string]uint64{},
+			})
+			if toAdd != testCase.toAdd {
+				t.Errorf("To add :%v\n desired: %v", toAdd, testCase.toAdd)
+			}
+			if !reflect.DeepEqual(toDelete, testCase.toDelete) {
+				t.Errorf("To delete :%v\n desired: %v", toDelete, testCase.toDelete)
 			}
 		})
 	}
@@ -147,6 +244,16 @@ func gss() *v1alpha1.GameServerSet {
 			Replicas:      1,
 			ReadyReplicas: 1,
 		}}
+}
+
+func withReplicas(replicas int32, gsSet *v1alpha1.GameServerSet) *v1alpha1.GameServerSet {
+	gsSet.Spec.Replicas = replicas
+	return gsSet
+}
+
+func withExclude(exclude bool, gsSet *v1alpha1.GameServerSet) *v1alpha1.GameServerSet {
+	gsSet.Spec.ExcludeConstraints = &exclude
+	return gsSet
 }
 
 func gsOwnered() []*v1alpha1.GameServer {
@@ -201,6 +308,92 @@ func gsOwnered2Running() []*v1alpha1.GameServer {
 	gamesvrs[1].Status.State = v1alpha1.GameServerRunning
 	gamesvrs[0].Spec.DeletableGates = []string{"test"}
 	gamesvrs[1].Spec.DeletableGates = []string{"test"}
+	return gamesvrs
+}
+
+func gsOwnered1Running1Exit() []*v1alpha1.GameServer {
+	gamesvrs := gsOwnered2()
+	gamesvrs[0].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Status.State = v1alpha1.GameServerExited
+	gamesvrs[0].Spec.DeletableGates = []string{"test"}
+	gamesvrs[1].Spec.DeletableGates = []string{"test"}
+	return gamesvrs
+}
+
+func gsOwnered2Running1Exit() []*v1alpha1.GameServer {
+	gamesvrs := gsOwnered2()
+	gamesvrs[0].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Status.State = v1alpha1.GameServerExited
+	gamesvrs[0].Spec.DeletableGates = []string{"test"}
+	gamesvrs[1].Spec.DeletableGates = []string{"test"}
+	gamesvrs = append([]*v1alpha1.GameServer{gamesvrs[0].DeepCopy()}, gamesvrs...)
+	return gamesvrs
+}
+
+func gsOwnered2Running1Deletable() []*v1alpha1.GameServer {
+	gamesvrs := gsOwnered2()
+	gamesvrs[0].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Status.Conditions = []v1alpha1.GameServerCondition{
+		{
+			Type:   "carrier.ocgi.dev/has-no-play",
+			Status: v1alpha1.ConditionTrue,
+		},
+	}
+	gamesvrs = append([]*v1alpha1.GameServer{gamesvrs[0].DeepCopy()}, gamesvrs...)
+	return gamesvrs
+}
+
+func gsOwnered1Running1OutofService() []*v1alpha1.GameServer {
+	eff := true
+	gamesvrs := gsOwnered2()
+	gamesvrs[0].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Spec.Constraints = []v1alpha1.Constraint{
+		{
+			Type:      v1alpha1.NotInService,
+			Effective: &eff,
+		},
+	}
+	return gamesvrs
+}
+
+func gsOwnered1Running1OutofServiceInplace() []*v1alpha1.GameServer {
+	eff := true
+	gamesvrs := gsOwnered2()
+	gamesvrs[0].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Spec.Constraints = []v1alpha1.Constraint{
+		{
+			Type:      v1alpha1.NotInService,
+			Effective: &eff,
+		},
+	}
+	gamesvrs[1].Annotations = map[string]string{util.GameServerInPlaceUpdatingAnnotation: "true"}
+	return gamesvrs
+}
+
+func gsOwnered3RunningCandidate() []*v1alpha1.GameServer {
+	gamesvrs := gsOwnered2()
+	gamesvrs[0].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Status.State = v1alpha1.GameServerRunning
+	gs := gamesvrs[0].DeepCopy()
+	gs.Name = "test-111"
+	gamesvrs = append(gamesvrs, gs)
+	return gamesvrs
+}
+
+func gsOwnered3RunningCandidateCost() []*v1alpha1.GameServer {
+	gamesvrs := gsOwnered2()
+	gamesvrs[0].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[0].Annotations = map[string]string{util.GameServerDeletionCost: "1000"}
+
+	gamesvrs[1].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Annotations = map[string]string{util.GameServerDeletionCost: "2000"}
+	gs := gamesvrs[0].DeepCopy()
+	gs.Name = "test-111"
+	gs.Annotations = map[string]string{util.GameServerDeletionCost: "3000"}
+	gamesvrs = append(gamesvrs, gs)
 	return gamesvrs
 }
 
