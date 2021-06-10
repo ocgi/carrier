@@ -104,8 +104,8 @@ const (
 	Static PortPolicy = "Static"
 	// Dynamic PortPolicy will dynamically allocated host Ports.
 	Dynamic PortPolicy = "Dynamic"
-	// LoaderBalancer PortPolicy will apply the port allocated from external load balacner.
-	LoaderBalancer PortPolicy = "LoaderBalancer"
+	// LoadBalancer PortPolicy will apply the port allocated from external load balacner.
+	LoadBalancer PortPolicy = "LoadBalancer"
 )
 
 // GameServerPort defines a set of Ports that.
