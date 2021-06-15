@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
-	v12 "k8s.io/client-go/informers/core/v1"
+	informerv1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -37,11 +37,13 @@ import (
 	gsfake "github.com/ocgi/carrier/pkg/client/clientset/versioned/fake"
 	"github.com/ocgi/carrier/pkg/client/informers/externalversions"
 	v1alpha12 "github.com/ocgi/carrier/pkg/client/informers/externalversions/carrier/v1alpha1"
+	"github.com/ocgi/carrier/pkg/util"
 )
 
 func TestNewControllerNodeTaint(t *testing.T) {
 	ctx := context.Background()
 	_, _, _, c, client := fakeController(ctx)
+	client = fake.NewSimpleClientset(node())
 	node := nodeWithTaint()
 	node, err := client.CoreV1().Nodes().Update(node)
 	if err != nil {
@@ -103,21 +105,29 @@ func TestNewControllerSyncDeleteTimeStamp(t *testing.T) {
 
 func TestNewControllerSyncStarting(t *testing.T) {
 	for _, testCase := range []struct {
-		name     string
-		gs       *v1alpha1.GameServer
-		podExist bool
-		gsChange bool
+		name         string
+		gs           *v1alpha1.GameServer
+		podExist     bool
+		gsChange     bool
+		desiredState v1alpha1.GameServerState
 	}{
 		{
-			name:     "pod exist",
-			gs:       gsWithTemp(),
-			podExist: true,
-			gsChange: true,
+			name:         "pod exist",
+			gs:           gsWithTemp(),
+			podExist:     true,
+			gsChange:     true,
+			desiredState: v1alpha1.GameServerStarting,
 		},
 		{
 			name:     "pod not exit",
 			gs:       gsWithTemp(),
-			gsChange: true,
+			gsChange: false,
+		},
+		{
+			name:         "pod not exit, gs address exit",
+			gs:           gsWithTempAddressExist(),
+			gsChange:     true,
+			desiredState: v1alpha1.GameServerFailed,
 		},
 		{
 			name:     "gs already running",
@@ -139,6 +149,10 @@ func TestNewControllerSyncStarting(t *testing.T) {
 				if err := podInformer.Informer().GetStore().Add(pod()); err != nil {
 					t.Error(err)
 				}
+			} else {
+				if err := podInformer.Informer().GetStore().Delete(pod()); err != nil {
+					t.Error(err)
+				}
 			}
 
 			gs, err := c.syncGameServerStartingState(testCase.gs.DeepCopy())
@@ -147,6 +161,9 @@ func TestNewControllerSyncStarting(t *testing.T) {
 			}
 			if gsChanged(gs, testCase.gs) != testCase.gsChange {
 				t.Errorf("desire: %v, get: %v", testCase.gsChange, !reflect.DeepEqual(gs, testCase.gs))
+			}
+			if testCase.gsChange && gs.Status.State != testCase.desiredState {
+				t.Errorf("desire: %v, get: %v", testCase.desiredState, gs.Status.State)
 			}
 		})
 	}
@@ -174,10 +191,37 @@ func TestNewControllerSyncRunning(t *testing.T) {
 			errorRet: true,
 		},
 		{
-			name:     "pod exist, node not exist",
+			name:     "pod exist, node not exist, gs state previous empty",
 			gs:       gsWithTemp(),
 			pod:      podRunning(),
 			errorRet: true,
+		},
+		{
+			name:  "pod exist, node not exist, gs state previous Running",
+			gs:    gsWithTempRunningWithAnn(),
+			pod:   podRunning(),
+			state: v1alpha1.GameServerFailed,
+		},
+		{
+			name:      "pod exist, gs state previous Running, pod re-created",
+			gs:        gsWithTempRunningAddress(),
+			pod:       podRecreated(),
+			state:     v1alpha1.GameServerFailed,
+			nodeExist: true,
+		},
+		{
+			name:      "pod exist, gs state previous Running, pod never restart",
+			gs:        gsWithTempRunningAddress(),
+			pod:       podContainerExitNeverRestart(),
+			state:     v1alpha1.GameServerExited,
+			nodeExist: true,
+		},
+		{
+			name:      "pod exist, gs state previous Running, pod always restart",
+			gs:        gsWithTempRunningAddress(),
+			pod:       podContainerExitAlwaysRestart(),
+			state:     v1alpha1.GameServerRunning,
+			nodeExist: true,
 		},
 		{
 			name:      "gs already running, container not ready",
@@ -204,6 +248,10 @@ func TestNewControllerSyncRunning(t *testing.T) {
 				if err := podInformer.Informer().GetStore().Add(testCase.pod); err != nil {
 					t.Error(err)
 				}
+			} else {
+				if err := podInformer.Informer().GetStore().Delete(pod()); err != nil {
+					t.Error(err)
+				}
 			}
 
 			gs, err := c.syncGameServerRunningState(testCase.gs)
@@ -217,13 +265,14 @@ func TestNewControllerSyncRunning(t *testing.T) {
 			if gs.Status.State != testCase.state {
 				t.Errorf("gs is %v, desire: %v", gs.Status.State, testCase.state)
 			}
+			t.Logf("gs is %v, desire: %v", gs.Status.State, testCase.state)
 		})
 	}
 }
 
-func fakeController(ctx context.Context) (v12.PodInformer, v12.NodeInformer,
+func fakeController(ctx context.Context) (informerv1.PodInformer, informerv1.NodeInformer,
 	v1alpha12.GameServerInformer, *Controller, *fake.Clientset) {
-	fakeClient := fake.NewSimpleClientset(node(), pod())
+	fakeClient := fake.NewSimpleClientset(pod())
 	fakeGSClient := gsfake.NewSimpleClientset(
 		&v1alpha1.GameServer{ObjectMeta: v1.ObjectMeta{Name: "test", Namespace: "default", UID: "123"}})
 	factory := informers.NewSharedInformerFactory(fakeClient, 0)
@@ -287,6 +336,29 @@ func podRunning() *corev1.Pod {
 	return pod
 }
 
+func podRunningWithNewAddress() *corev1.Pod {
+	pod := pod()
+	pod.Status.ContainerStatuses = []corev1.ContainerStatus{
+		{
+			Name:                 "server",
+			State:                corev1.ContainerState{Running: &corev1.ContainerStateRunning{StartedAt: v1.Now()}},
+			LastTerminationState: corev1.ContainerState{},
+			Ready:                true,
+			ContainerID:          "XXX",
+		},
+	}
+	pod.Status.PodIP = "test2"
+	pod.Spec.NodeName = "test"
+	return pod
+}
+
+func podRecreated() *corev1.Pod {
+	pod := pod()
+	pod.Status.Phase = corev1.PodPending
+	pod.Spec.NodeName = ""
+	return pod
+}
+
 func podNotRunning() *corev1.Pod {
 	pod := pod()
 	pod.Status.ContainerStatuses = []corev1.ContainerStatus{
@@ -298,6 +370,42 @@ func podNotRunning() *corev1.Pod {
 			ContainerID:          "XXXXX",
 		},
 	}
+	return pod
+}
+
+func podContainerExitNeverRestart() *corev1.Pod {
+	pod := pod()
+	pod.Spec.RestartPolicy = corev1.RestartPolicyNever
+	pod.Status.ContainerStatuses = []corev1.ContainerStatus{
+		{
+			Name: util.GameServerContainerName,
+			State: corev1.ContainerState{
+				Terminated: &corev1.ContainerStateTerminated{
+					ExitCode: 0,
+				},
+			},
+			ContainerID: "XXX",
+		},
+	}
+	pod.Status.PodIP = "test1"
+	return pod
+}
+
+func podContainerExitAlwaysRestart() *corev1.Pod {
+	pod := pod()
+	pod.Spec.RestartPolicy = corev1.RestartPolicyAlways
+	pod.Status.ContainerStatuses = []corev1.ContainerStatus{
+		{
+			Name: util.GameServerContainerName,
+			State: corev1.ContainerState{
+				Terminated: &corev1.ContainerStateTerminated{
+					ExitCode: 0,
+				},
+			},
+			ContainerID: "XXX",
+		},
+	}
+	pod.Status.PodIP = "test1"
 	return pod
 }
 
@@ -356,11 +464,26 @@ func gsWithTemp() *v1alpha1.GameServer {
 	return gs
 }
 
+func gsWithTempAddressExist() *v1alpha1.GameServer {
+	gs := gsWithTemp()
+	gs.Status.Address = "test"
+	return gs
+}
+
 func gsWithTempRunning() *v1alpha1.GameServer {
 	gs := gsWithTemp()
 	gs.Status.State = v1alpha1.GameServerRunning
 	return gs
 }
+
+func gsWithTempRunningAddress() *v1alpha1.GameServer {
+	gs := gsWithTemp()
+	gs.Status.State = v1alpha1.GameServerRunning
+	gs.Status.NodeName = "test"
+	gs.Status.Address = "test1"
+	return gs
+}
+
 func gsWithTempStarting() *v1alpha1.GameServer {
 	gs := gsWithTemp()
 	gs.Status.State = v1alpha1.GameServerStarting

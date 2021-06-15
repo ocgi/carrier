@@ -253,6 +253,7 @@ func buildPod(gs *carrierv1alpha1.GameServer) (*corev1.Pod, error) {
 		pod.Labels = map[string]string{}
 	}
 	injectPodScheduling(gs, pod)
+	injectPodTolerations(pod)
 	return pod, nil
 }
 
@@ -317,6 +318,22 @@ func injectPodScheduling(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 		pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(affExection, term)
 		return
 	}
+}
+
+// injectPodTolerations helps add tolerations to pod.
+// tolerate: NotReady、Unreachable
+func injectPodTolerations(pod *corev1.Pod) {
+	pod.Spec.Tolerations = append(pod.Spec.Tolerations, []corev1.Toleration{
+		{
+			Key:      corev1.TaintNodeNotReady,
+			Operator: corev1.TolerationOpExists,
+			Effect:   corev1.TaintEffectNoExecute,
+		},
+		{
+			Key:      corev1.TaintNodeUnreachable,
+			Operator: corev1.TolerationOpExists,
+			Effect:   corev1.TaintEffectNoExecute,
+		}}...)
 }
 
 // isGameServerPod returns if this Pod is a Pod that comes from a GameServer

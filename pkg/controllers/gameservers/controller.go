@@ -328,18 +328,27 @@ func (c *Controller) syncGameServer(key string) error {
 	if gs.DeletionTimestamp != nil {
 		c.portAllocator.Release(getOwner(gs), string(gs.UID), findPorts(gs))
 	}
-
+	if gs.Status.State == carrierv1alpha1.GameServerExited ||
+		gs.Status.State == carrierv1alpha1.GameServerFailed {
+		return nil
+	}
 	gsCopy := gs.DeepCopy()
 	if gs, err = c.syncGameServerDeletionTimestamp(gsCopy); err != nil {
-		klog.Errorf("Failed sync GameServer: %v deletion time, error: %v", key, err)
+		if klog.V(5) {
+			klog.Errorf("Failed sync GameServer: %v deletion time, error: %v", key, err)
+		}
 		return err
 	}
 	if gs, err = c.syncGameServerStartingState(gs); err != nil {
-		klog.Errorf("Failed sync GameServer: %v starting state, error: %v", key, err)
+		if klog.V(5) {
+			klog.Errorf("Failed sync GameServer: %v starting state, error: %v", key, err)
+		}
 		return err
 	}
 	if gs, err = c.syncGameServerRunningState(gs); err != nil {
-		klog.Errorf("Failed sync GameServer: %v running state, error: %v", key, err)
+		if klog.V(5) {
+			klog.Errorf("Failed sync GameServer: %v running state, error: %v", key, err)
+		}
 		return err
 	}
 	return nil
@@ -437,9 +446,6 @@ func (c *Controller) syncGameServerStartingState(gs *carrierv1alpha1.GameServer)
 	if IsBeingDeleted(gs) {
 		return gs, nil
 	}
-	if !gs.DeletionTimestamp.IsZero() {
-		return gs, nil
-	}
 	var err error
 	gs, err = c.tryAllocatePorts(gs)
 	if err != nil {
@@ -450,6 +456,16 @@ func (c *Controller) syncGameServerStartingState(gs *carrierv1alpha1.GameServer)
 	}
 	pod, err := c.getGameServerPod(gs)
 	if k8serrors.IsNotFound(err) {
+		// update gs to failed
+		if len(gs.Status.Address) != 0 || len(gs.Status.NodeName) != 0 {
+			gs.Status.State = carrierv1alpha1.GameServerFailed
+			gs.Status.Conditions = append(gs.Status.Conditions, carrierv1alpha1.GameServerCondition{
+				Type:          "PodDeleted",
+				LastProbeTime: metav1.NewTime(time.Now()),
+				Message:       "Pod deleted",
+			})
+			return c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).UpdateStatus(gs)
+		}
 		klog.V(4).Infof("Start creating pod for GameServer:%v", gs.Name)
 		return c.createGameServerPod(gs)
 	}
@@ -485,16 +501,14 @@ func (c *Controller) syncGameServerStartingState(gs *carrierv1alpha1.GameServer)
 }
 
 // syncGameServerRunningState reconciles the GameServer. We will do following:
-// 1. Add ready container to annotation
-// 2. Add pod nodeName and port to GameServer Status(if using host port)
-// 3. Check node name address changed
-// 4. Check pod status
+// 1. Add pod nodeName and port to GameServer Status(if using host port)
+// 2. Check node name address changed
+// 3. Check pod status
 func (c *Controller) syncGameServerRunningState(gs *carrierv1alpha1.GameServer) (*carrierv1alpha1.GameServer, error) {
 	klog.V(4).Infof("Start sync running state for: %v", gs.Name)
-	if !gs.DeletionTimestamp.IsZero() {
+	if IsBeingDeleted(gs) {
 		return gs, nil
 	}
-
 	pod, err := c.getGameServerPod(gs)
 	if err != nil {
 		return gs, err
@@ -512,7 +526,7 @@ func (c *Controller) syncGameServerRunningState(gs *carrierv1alpha1.GameServer) 
 	}
 
 	switch gs.Status.State {
-	case carrierv1alpha1.GameServerExited, carrierv1alpha1.GameServerFailed, carrierv1alpha1.GameServerUnknown:
+	case carrierv1alpha1.GameServerUnknown:
 		return gs, nil
 	case carrierv1alpha1.GameServerStarting, carrierv1alpha1.GameServerRunning:
 		klog.V(5).Infof("Starting reconcile state: %v", gs.Status.State)
@@ -520,24 +534,34 @@ func (c *Controller) syncGameServerRunningState(gs *carrierv1alpha1.GameServer) 
 		klog.Warningf("Found unexpected state: %v", gs.Status.State)
 		return gs, nil
 	}
+	var node *corev1.Node
 	nodeName := pod.Spec.NodeName
 	if len(nodeName) == 0 {
-		return gs, fmt.Errorf("pod of GameServer: %v has not been scheduled", gs.Name)
+		if len(gs.Status.NodeName) == 0 {
+			return gs, fmt.Errorf("pod of GameServer: %v has not been scheduled", gs.Name)
+		}
+		// len(gs.Status.NodeName) != 0, may not happen.
+		// If happen, node is nil
+		// the gs will be failed.
+	} else {
+		node, err = c.nodeLister.Get(nodeName)
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return gs, errors.Wrapf(err, "error retrieving node %s for Pod %s", nodeName, pod.Name)
+		}
 	}
-	_, err = c.nodeLister.Get(nodeName)
-	if err != nil {
-		return gs, errors.Wrapf(err, "error retrieving node %s for Pod %s", pod.Spec.NodeName, pod.Name)
-	}
-	klog.Infof("Old GameServer %v state: %v, address: %v, node name: %v",
+	// check node exist.
+	// if not NotFound Err, return
+	// if NotFound or err is nil, go to reconcileGameServerState
+	// NotFound will be marked as Failed,
+	// Otherwise according to pod state.
+	klog.V(5).Infof("Old GameServer %v state: %v, address: %v, node name: %v",
 		gs.Name, gs.Status.State, gs.Status.Address, gs.Status.NodeName)
 	gsStatusCopy := gs.Status.DeepCopy()
+	// reconcile GameServer State
+	c.reconcileGameServerState(gs, pod, node)
 	// reconcile GameServer Address
-	updated := false
-	if gs, updated, err = c.reconcileGameServerAddress(gs, pod); err != nil {
-		return gs, errors.Wrapf(err, "failed to update addrsss of %v", pod.Name)
-	}
-	c.reconcileGameServerState(gs, pod)
-	klog.Infof("New GameServer %v state: %v, address: %v, node name: %v",
+	updated := c.reconcileGameServerAddress(gs, pod)
+	klog.V(5).Infof("New GameServer %v state: %v, address: %v, node name: %v",
 		gs.Name, gs.Status.State, gs.Status.Address, gs.Status.NodeName)
 	if reflect.DeepEqual(gsStatusCopy, gs.Status) {
 		return gs, nil
@@ -627,28 +651,26 @@ func (c *Controller) getGameServerPod(gs *carrierv1alpha1.GameServer) (*corev1.P
 }
 
 func (c *Controller) reconcileGameServerAddress(gs *carrierv1alpha1.GameServer,
-	pod *corev1.Pod) (*carrierv1alpha1.GameServer, bool, error) {
+	pod *corev1.Pod) bool {
 	updated := false
 	if gs.Status.NodeName == "" || gs.Status.Address == "" {
 		updated = true
 		applyGameServerAddressAndPort(gs, pod)
-		return gs, updated, nil
+		return updated
 	}
-	address := pod.Status.PodIP
-	if pod.Spec.NodeName != gs.Status.NodeName || address != gs.Status.Address {
-		gs.Status.State = carrierv1alpha1.GameServerFailed
-		c.recorder.Event(gs, corev1.EventTypeWarning, string(gs.Status.State), "Node migration occurred")
-	}
-	return gs, updated, nil
+	return updated
 }
 
 // reconcileGameServerState reconcile pod status, including pod restart policy
-func (c *Controller) reconcileGameServerState(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
+func (c *Controller) reconcileGameServerState(gs *carrierv1alpha1.GameServer, pod *corev1.Pod, node *corev1.Node) {
+	if node == nil {
+		gs.Status.State = carrierv1alpha1.GameServerFailed
+		return
+	}
 	for _, cs := range pod.Status.ContainerStatuses {
 		if cs.Name != util.GameServerContainerName {
 			continue
 		}
-
 		switch pod.Status.Phase {
 		case corev1.PodRunning:
 			if cs.State.Terminated == nil {
