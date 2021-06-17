@@ -219,6 +219,8 @@ type GameServerCondition struct {
 
 // LoadBalancerStatus represents the status of a load-balancer.
 type LoadBalancerStatus struct {
+	// Domain is the domain name of the ingress points for the load-balancer.
+	Domain string `json:"domain,omitempty"`
 	// Ingress is a list containing ingress points for the load-balancer.
 	Ingress []LoadBalancerIngress `json:"ingress,omitempty"`
 }
