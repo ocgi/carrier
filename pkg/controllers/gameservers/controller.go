@@ -328,10 +328,6 @@ func (c *Controller) syncGameServer(key string) error {
 	if gs.DeletionTimestamp != nil {
 		c.portAllocator.Release(getOwner(gs), string(gs.UID), findPorts(gs))
 	}
-	if gs.Status.State == carrierv1alpha1.GameServerExited ||
-		gs.Status.State == carrierv1alpha1.GameServerFailed {
-		return nil
-	}
 	gsCopy := gs.DeepCopy()
 	if gs, err = c.syncGameServerDeletionTimestamp(gsCopy); err != nil {
 		if klog.V(5) {
