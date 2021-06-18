@@ -195,8 +195,10 @@ func SetInPlaceUpdatingStatus(gs *carrierv1alpha1.GameServer, status string) {
 func buildPod(gs *carrierv1alpha1.GameServer) (*corev1.Pod, error) {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gs.Name,
-			Namespace: gs.Namespace,
+			Name:        gs.Name,
+			Namespace:   gs.Namespace,
+			Labels:      gs.Spec.Template.Labels,
+			Annotations: gs.Spec.Template.Annotations,
 		},
 		Spec: *gs.Spec.Template.Spec.DeepCopy(),
 	}
@@ -259,8 +261,8 @@ func buildPod(gs *carrierv1alpha1.GameServer) (*corev1.Pod, error) {
 
 // podObjectMeta configures the pod ObjectMeta details
 func podObjectMeta(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
-	pod.Labels = util.Merge(pod.Labels, gs.Labels)
-	pod.Annotations = util.Merge(pod.Annotations, gs.Annotations)
+	pod.Labels = util.Merge(gs.Labels, pod.Labels)
+	pod.Annotations = util.Merge(gs.Annotations, pod.Annotations)
 	pod.Labels[util.RoleLabelKey] = util.GameServerLabelRoleValue
 	pod.Labels[util.GameServerPodLabelKey] = gs.Name
 	ref := metav1.NewControllerRef(gs, carrierv1alpha1.SchemeGroupVersion.WithKind("GameServer"))
@@ -425,7 +427,6 @@ func IsLoadBalancerPortExist(gs *carrierv1alpha1.GameServer) bool {
 // updatePodSpec update game server spec, include, image and resource.
 func updatePodSpec(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 	var image string
-	var resources corev1.ResourceRequirements
 	if pod.Labels == nil {
 		pod.Labels = make(map[string]string)
 	}
@@ -435,26 +436,14 @@ func updatePodSpec(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 			continue
 		}
 		image = container.Image
-		resources = container.Resources
+		return
 	}
 	for i, container := range pod.Spec.Containers {
 		if container.Name != util.GameServerContainerName {
 			continue
 		}
 		pod.Spec.Containers[i].Image = image
-		for name, quantity := range resources.Limits {
-			if pod.Spec.Containers[i].Resources.Limits == nil {
-				pod.Spec.Containers[i].Resources.Limits = corev1.ResourceList{}
-			}
-			pod.Spec.Containers[i].Resources.Limits[name] = quantity
-		}
-		for name, quantity := range resources.Requests {
-			if pod.Spec.Containers[i].Resources.Requests == nil {
-				pod.Spec.Containers[i].Resources.Requests = corev1.ResourceList{}
-			}
-			pod.Spec.Containers[i].Resources.Requests[name] = quantity
-		}
-		pod.Spec.Containers[i].Resources = resources
+		return
 	}
 }
 
