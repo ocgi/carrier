@@ -511,13 +511,17 @@ func (c *Controller) syncGameServerRunningState(gs *carrierv1alpha1.GameServer) 
 	}
 	oldHash := pod.Labels[util.GameServerHash]
 	newHash := gs.Labels[util.GameServerHash]
+	// len(oldHash) == 0 && len(newHash) == 0 make inplace update possible for
+	// single GameServer not controlled by Squad or GameServerSet
 	if oldHash != newHash || len(oldHash) == 0 && len(newHash) == 0 {
 		klog.V(4).Infof("hash not equal start update %v", pod.Name)
 		podCopy := pod.DeepCopy()
 		updatePodSpec(gs, podCopy)
-		pod, err = c.kubeClient.CoreV1().Pods(podCopy.Namespace).Update(podCopy)
-		if err != nil {
-			return gs, err
+		if !reflect.DeepEqual(podCopy, pod) {
+			pod, err = c.kubeClient.CoreV1().Pods(podCopy.Namespace).Update(podCopy)
+			if err != nil {
+				return gs, err
+			}
 		}
 	}
 
