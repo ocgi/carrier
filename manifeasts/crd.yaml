@@ -160,6 +160,7 @@ spec:
               enum:
                 - MostAllocated
                 - LeastAllocated
+                - Default
             template:
               required:
                 - spec
