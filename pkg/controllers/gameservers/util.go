@@ -436,14 +436,14 @@ func updatePodSpec(gs *carrierv1alpha1.GameServer, pod *corev1.Pod) {
 			continue
 		}
 		image = container.Image
-		return
+		break
 	}
 	for i, container := range pod.Spec.Containers {
 		if container.Name != util.GameServerContainerName {
 			continue
 		}
 		pod.Spec.Containers[i].Image = image
-		return
+		break
 	}
 }
 
