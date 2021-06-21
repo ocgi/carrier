@@ -109,6 +109,7 @@ func TestControllerSyncGameServerSet(t *testing.T) {
 }
 
 func TestComputeExpectation(t *testing.T) {
+	BurstReplicas = 2
 	testCases := []struct {
 		name     string
 		gsLister []*v1alpha1.GameServer
@@ -187,6 +188,22 @@ func TestComputeExpectation(t *testing.T) {
 			gsSet:    withReplicas(2, gss()),
 			toAdd:    0,
 			toDelete: []*v1alpha1.GameServer{gsOwnered3RunningCandidateCost()[0]},
+		},
+		{
+			name:     "gsSet spec replicas, 2 to be candidate, 1 gs limited",
+			gsLister: gsOwnered4Running3Constraint(),
+			gsSet:    withReplicas(1, gss()),
+			toAdd:    0,
+			toDelete: []*v1alpha1.GameServer{gsOwnered4Running3Constraint()[0],
+				gsOwnered4Running3Constraint()[1]},
+		},
+		{
+			name:     "gsSet spec replicas, 3 to be candidate, 1 gs has out of service previously",
+			gsLister: gsOwnered4Running3Constraint1Out(),
+			gsSet:    withReplicas(1, gss()),
+			toAdd:    0,
+			toDelete: []*v1alpha1.GameServer{gsOwnered4Running3Constraint1Out()[1], gsOwnered4Running3Constraint1Out()[0],
+				gsOwnered4Running3Constraint1Out()[2]},
 		},
 	}
 	for _, testCase := range testCases {
@@ -394,6 +411,41 @@ func gsOwnered3RunningCandidateCost() []*v1alpha1.GameServer {
 	gs.Name = "test-111"
 	gs.Annotations = map[string]string{util.GameServerDeletionCost: "3000"}
 	gamesvrs = append(gamesvrs, gs)
+	return gamesvrs
+}
+
+func gsOwnered4Running3Constraint() []*v1alpha1.GameServer {
+	gamesvrs := gsOwnered2()
+	gamesvrs[0].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[0].Annotations = map[string]string{util.GameServerDeletionCost: "1000"}
+
+	gamesvrs[1].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Annotations = map[string]string{util.GameServerDeletionCost: "2000"}
+	gs := gamesvrs[0].DeepCopy()
+	gs.Name = "test-111"
+	gs.Annotations = map[string]string{util.GameServerDeletionCost: "3000"}
+	gamesvrs = append(gamesvrs, gs)
+	gs1 := gs.DeepCopy()
+	gs1.Name = "test-222"
+	gamesvrs = append(gamesvrs, gs1)
+	return gamesvrs
+}
+
+func gsOwnered4Running3Constraint1Out() []*v1alpha1.GameServer {
+	gamesvrs := gsOwnered1Running1OutofService()
+	gamesvrs[0].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[0].Annotations = map[string]string{util.GameServerDeletionCost: "1000"}
+
+	gamesvrs[1].Status.State = v1alpha1.GameServerRunning
+	gamesvrs[1].Annotations = map[string]string{util.GameServerDeletionCost: "2000"}
+	gs := gamesvrs[0].DeepCopy()
+	gs.Name = "test-111"
+	gs.Annotations = map[string]string{util.GameServerDeletionCost: "3000"}
+	gamesvrs = append(gamesvrs, gs)
+	gs1 := gs.DeepCopy()
+	gs1.Name = "test-222"
+	gs1.Annotations = map[string]string{util.GameServerDeletionCost: "3001"}
+	gamesvrs = append(gamesvrs, gs1)
 	return gamesvrs
 }
 

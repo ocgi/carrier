@@ -51,7 +51,7 @@ import (
 	"github.com/ocgi/carrier/pkg/util/kube"
 )
 
-const (
+var (
 	// BurstReplicas is a rate limiter for booting pods on a lot of pods.
 	BurstReplicas = 64
 )
@@ -448,7 +448,6 @@ func (c *Controller) getOldAndNewReplicas(gsSet *carrierv1alpha1.GameServerSet) 
 // we will reconcile and add more `GameServers`, which will not affect the final results.
 func computeExpectation(gsSet *carrierv1alpha1.GameServerSet,
 	list []*carrierv1alpha1.GameServer, counts *Counter) (int, []*carrierv1alpha1.GameServer, bool) {
-	scaling := IsGameServerSetScaling(gsSet)
 	excludeConstraintGS := excludeConstraints(gsSet)
 	var upCount int
 
@@ -501,32 +500,31 @@ func computeExpectation(gsSet *carrierv1alpha1.GameServerSet,
 		// 2. delete deletable
 		// 3. try delete running
 		toDelete := -diff
-		if scaling {
-			candidates := make([]*carrierv1alpha1.GameServer, len(potentialDeletions))
-			copy(candidates, potentialDeletions)
-			deletables, deleteCandidates, runnings := classifyGameServers(candidates, false)
-			// sort running gs
-			runnings = sortGameServers(runnings, gsSet.Spec.Scheduling, counts)
-			// sort Running GameServers for inpalce updating.
-			inPlaceUpdating, _ := IsGameServerSetInPlaceUpdating(gsSet)
-			if inPlaceUpdating {
-				runnings = sortGameServersByHash(runnings, gsSet)
-			}
-			potentialDeletions = append(deletables, deleteCandidates...)
-			potentialDeletions = append(potentialDeletions, runnings...)
-			klog.Infof("deletables:%v, deleteCandidates:%v, runnings:%v",
-				len(deletables), len(deleteCandidates), len(runnings))
-		} else {
-			potentialDeletions = sortGameServers(potentialDeletions, gsSet.Spec.Scheduling, counts)
+		candidates := make([]*carrierv1alpha1.GameServer, len(potentialDeletions))
+		copy(candidates, potentialDeletions)
+		deletables, deleteCandidates, runnings := classifyGameServers(candidates, false)
+		// sort running gs
+		runnings = sortGameServers(runnings, gsSet.Spec.Scheduling, counts)
+		// sort Running GameServers for inpalce updating.
+		inPlaceUpdating, _ := IsGameServerSetInPlaceUpdating(gsSet)
+		if inPlaceUpdating {
+			runnings = sortGameServersByHash(runnings, gsSet)
 		}
+		potentialDeletions = append(deletables, deleteCandidates...)
+		currentCandidateCount := len(potentialDeletions)
+		potentialDeletions = append(potentialDeletions, runnings...)
+		sumCandidateCount := len(potentialDeletions)
+		klog.Infof("deletables:%v, deleteCandidates:%v, runnings:%v",
+			len(deletables), len(deleteCandidates), len(runnings))
 
-		if len(potentialDeletions) < toDelete {
-			toDelete = len(potentialDeletions)
+		if sumCandidateCount < toDelete {
+			toDelete = sumCandidateCount
 		}
-		if toDelete > BurstReplicas {
-			toDelete = BurstReplicas
+		if toDelete-currentCandidateCount > BurstReplicas {
+			toDelete = BurstReplicas + currentCandidateCount
 			exceedBurst = true
 		}
+
 		toDeleteGameServers = append(toDeleteGameServers, potentialDeletions[0:toDelete]...)
 	}
 	return toAdd, toDeleteGameServers, exceedBurst
