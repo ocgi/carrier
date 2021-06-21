@@ -299,7 +299,7 @@ func (c *Controller) manageReplicas(key string, list []*carrierv1alpha1.GameServ
 	status := computeStatus(list, gsSet)
 	klog.V(5).Infof("Reconciling GameServerSet name: %v, spec: %v, status: %v", key, gsSet.Spec, status)
 	if exceedBurst {
-		defer c.workerQueue.Add(gsSet)
+		defer c.workerQueue.Add(key)
 	}
 	klog.V(2).Infof("GameSeverSet: %v toAdd: %v, toDelete: %v, list: %+v",
 		key, gameServersToAdd, len(toDeleteList), toDeleteList)
