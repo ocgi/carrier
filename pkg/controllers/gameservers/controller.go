@@ -575,7 +575,8 @@ func (c *Controller) syncGameServerRunningState(gs *carrierv1alpha1.GameServer) 
 		c.recorder.Event(gs, corev1.EventTypeNormal, string(gs.Status.State),
 			"Address and port populated")
 	}
-	if gs.Status.State == carrierv1alpha1.GameServerRunning {
+	if gsStatusCopy.State != carrierv1alpha1.GameServerRunning &&
+		gs.Status.State == carrierv1alpha1.GameServerRunning {
 		c.recorder.Event(gs, corev1.EventTypeNormal, string(gs.Status.State),
 			"Waiting for receiving readiness message")
 	}
@@ -681,7 +682,9 @@ func (c *Controller) reconcileGameServerState(gs *carrierv1alpha1.GameServer, po
 				gs.Status.State = carrierv1alpha1.GameServerRunning
 				return
 			}
-			c.recorder.Event(gs, corev1.EventTypeWarning, string(gs.Status.State), cs.State.Terminated.Message)
+			c.recorder.Eventf(gs, corev1.EventTypeWarning, string(gs.Status.State),
+				"Container terminated, reason: %v, exit code: %v",
+				cs.State.Terminated.Reason, cs.State.Terminated.ExitCode)
 			if pod.Spec.RestartPolicy == corev1.RestartPolicyNever {
 				gs.Status.State = carrierv1alpha1.GameServerExited
 				return
