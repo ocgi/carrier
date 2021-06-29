@@ -480,7 +480,7 @@ func (c *Controller) syncGameServerStartingState(gs *carrierv1alpha1.GameServer)
 		}
 	}
 
-	if gs.Status.State == carrierv1alpha1.GameServerRunning && pod.Status.Phase == corev1.PodRunning {
+	if gs.Status.State == carrierv1alpha1.GameServerRunning {
 		return gs, nil
 	}
 	if gs.Status.State == carrierv1alpha1.GameServerStarting {
@@ -668,12 +668,12 @@ func (c *Controller) reconcileGameServerState(gs *carrierv1alpha1.GameServer, po
 		gs.Status.State = carrierv1alpha1.GameServerFailed
 		return
 	}
-	for _, cs := range pod.Status.ContainerStatuses {
-		if cs.Name != util.GameServerContainerName {
-			continue
-		}
-		switch pod.Status.Phase {
-		case corev1.PodRunning:
+	switch pod.Status.Phase {
+	case corev1.PodRunning:
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Name != util.GameServerContainerName {
+				continue
+			}
 			if cs.State.Terminated == nil {
 				if IsOutOfService(gs) && IsDeletable(gs) {
 					gs.Status.State = carrierv1alpha1.GameServerExited
@@ -689,16 +689,16 @@ func (c *Controller) reconcileGameServerState(gs *carrierv1alpha1.GameServer, po
 				gs.Status.State = carrierv1alpha1.GameServerExited
 				return
 			}
-			gs.Status.State = carrierv1alpha1.GameServerRunning
-		case corev1.PodPending:
-			gs.Status.State = carrierv1alpha1.GameServerStarting
-		case corev1.PodFailed:
-			gs.Status.State = carrierv1alpha1.GameServerFailed
-		case corev1.PodSucceeded:
-			gs.Status.State = carrierv1alpha1.GameServerExited
-		default:
-			gs.Status.State = carrierv1alpha1.GameServerUnknown
 		}
+		gs.Status.State = carrierv1alpha1.GameServerRunning
+	case corev1.PodPending:
+		gs.Status.State = carrierv1alpha1.GameServerStarting
+	case corev1.PodFailed:
+		gs.Status.State = carrierv1alpha1.GameServerFailed
+	case corev1.PodSucceeded:
+		gs.Status.State = carrierv1alpha1.GameServerExited
+	default:
+		gs.Status.State = carrierv1alpha1.GameServerUnknown
 	}
 	return
 }
