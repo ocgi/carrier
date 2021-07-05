@@ -254,7 +254,7 @@ func (c *Controller) getNewGameServerSet(
 			Name:            squad.Name + "-" + gsTemplateSpecHash,
 			Namespace:       squad.Namespace,
 			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(squad, controllerKind)},
-			Labels:          newGSSetTemplate.Labels,
+			Labels:          util.Merge(squad.Labels, newGSSetTemplate.Labels),
 		},
 		Spec: carrierv1alpha1.GameServerSetSpec{
 			Scheduling:         squad.Spec.Scheduling,
