@@ -101,12 +101,9 @@ func NewController(
 	gsSetInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: c.gameServerSetEventHandler,
 		UpdateFunc: func(_, newObj interface{}) {
-			gsSet := newObj.(*carrierv1alpha1.GameServerSet)
-			// ignore if already being deleted
-			if gsSet.ObjectMeta.DeletionTimestamp.IsZero() {
-				c.gameServerSetEventHandler(gsSet)
-			}
+			c.gameServerSetEventHandler(newObj)
 		},
+		DeleteFunc: c.deleteGameServerSet,
 	})
 
 	return c
@@ -287,20 +284,77 @@ func (c *Controller) getGameServerMapForSquad(
 // assuming that it has one
 func (c *Controller) gameServerSetEventHandler(obj interface{}) {
 	gsSet := obj.(*carrierv1alpha1.GameServerSet)
+	if gsSet.DeletionTimestamp != nil {
+		// On a restart of the controller manager, it's possible for an object to
+		// show up in a state that is already pending deletion.
+		c.deleteGameServerSet(gsSet)
+		return
+	}
 	ref := metav1.GetControllerOf(gsSet)
 	if ref == nil {
 		return
 	}
-	squad, err := c.squadLister.Squads(gsSet.ObjectMeta.Namespace).Get(ref.Name)
+	squad := c.resolveControllerRef(gsSet.Namespace, ref)
+	if squad == nil {
+		return
+	}
+	c.enqueueGameSquad(squad)
+}
+
+// deleteGameServerSet enqueues the squad that manages a GameServerSet when
+// the GameServerSet is deleted.
+func (c *Controller) deleteGameServerSet(obj interface{}) {
+	gsSet, ok := obj.(*carrierv1alpha1.GameServerSet)
+	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
+			return
+		}
+		gsSet, ok = tombstone.Obj.(*carrierv1alpha1.GameServerSet)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a GameServerSet %#v", obj))
+			return
+		}
+	}
+
+	controllerRef := metav1.GetControllerOf(gsSet)
+	if controllerRef == nil {
+		// No controller should care about orphans being deleted.
+		return
+	}
+	squad := c.resolveControllerRef(gsSet.Namespace, controllerRef)
+	if squad == nil {
+		return
+	}
+	klog.V(4).Infof("GameServerSet %s deleted.", gsSet.Name)
+	c.enqueueGameSquad(squad)
+}
+
+// resolveControllerRef returns the controller referenced by a ControllerRef,
+// or nil if the ControllerRef could not be resolved to a matching controller
+// of the correct Kind.
+func (c *Controller) resolveControllerRef(namespace string, controllerRef *metav1.OwnerReference) *carrierv1alpha1.Squad {
+	// We can't look up by UID, so look up by Name and then verify UID.
+	// Don't even try to look up by Name if it's the wrong Kind.
+	if controllerRef.Kind != controllerKind.Kind {
+		return nil
+	}
+	squad, err := c.squadLister.Squads(namespace).Get(controllerRef.Name)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			klog.Warning("Owner Squad no longer available for syncing")
 		} else {
-			runtime.HandleError(errors.Wrapf(err, "error retrieving GameServerSet owner, ref: %v", ref))
+			runtime.HandleError(errors.Wrapf(err, "error retrieving GameServerSet owner, ref: %v", controllerRef))
 		}
-		return
+		return nil
 	}
-	c.enqueueGameSquad(squad)
+	if squad.UID != controllerRef.UID {
+		// The controller we found with this Name is not the same one that the
+		// ControllerRef points to.
+		return nil
+	}
+	return squad
 }
 
 func (c *Controller) ensureDefaults(squad *carrierv1alpha1.Squad) {
