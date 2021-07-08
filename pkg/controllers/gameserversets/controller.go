@@ -275,9 +275,10 @@ func (c *Controller) syncGameServerSet(key string) error {
 	if err != nil {
 		return err
 	}
-	err = c.manageReplicas(key, list, gsSet)
-	if err != nil {
-		return err
+	if gsSet.DeletionTimestamp == nil {
+		if err = c.manageReplicas(key, list, gsSet); err != nil {
+			return err
+		}
 	}
 	gsSet, err = c.syncGameServerSetStatus(gsSet, list)
 	if err != nil {
