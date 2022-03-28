@@ -17,6 +17,7 @@
 package v1alpha1
 
 import (
+	"context"
 	"time"
 
 	v1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
@@ -36,17 +37,17 @@ type SquadsGetter interface {
 
 // SquadInterface has methods to work with Squad resources.
 type SquadInterface interface {
-	Create(*v1alpha1.Squad) (*v1alpha1.Squad, error)
-	Update(*v1alpha1.Squad) (*v1alpha1.Squad, error)
-	UpdateStatus(*v1alpha1.Squad) (*v1alpha1.Squad, error)
-	Delete(name string, options *v1.DeleteOptions) error
-	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
-	Get(name string, options v1.GetOptions) (*v1alpha1.Squad, error)
-	List(opts v1.ListOptions) (*v1alpha1.SquadList, error)
-	Watch(opts v1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.Squad, err error)
-	GetScale(squadName string, options v1.GetOptions) (*autoscalingv1.Scale, error)
-	UpdateScale(squadName string, scale *autoscalingv1.Scale) (*autoscalingv1.Scale, error)
+	Create(ctx context.Context, squad *v1alpha1.Squad, opts v1.CreateOptions) (*v1alpha1.Squad, error)
+	Update(ctx context.Context, squad *v1alpha1.Squad, opts v1.UpdateOptions) (*v1alpha1.Squad, error)
+	UpdateStatus(ctx context.Context, squad *v1alpha1.Squad, opts v1.UpdateOptions) (*v1alpha1.Squad, error)
+	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.Squad, error)
+	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.SquadList, error)
+	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Squad, err error)
+	GetScale(ctx context.Context, squadName string, options v1.GetOptions) (*autoscalingv1.Scale, error)
+	UpdateScale(ctx context.Context, squadName string, scale *autoscalingv1.Scale, opts v1.UpdateOptions) (*autoscalingv1.Scale, error)
 
 	SquadExpansion
 }
@@ -66,20 +67,20 @@ func newSquads(c *CarrierV1alpha1Client, namespace string) *squads {
 }
 
 // Get takes name of the squad, and returns the corresponding squad object, and an error if there is any.
-func (c *squads) Get(name string, options v1.GetOptions) (result *v1alpha1.Squad, err error) {
+func (c *squads) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Squad, err error) {
 	result = &v1alpha1.Squad{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("squads").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of Squads that match those selectors.
-func (c *squads) List(opts v1.ListOptions) (result *v1alpha1.SquadList, err error) {
+func (c *squads) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.SquadList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -90,13 +91,13 @@ func (c *squads) List(opts v1.ListOptions) (result *v1alpha1.SquadList, err erro
 		Resource("squads").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested squads.
-func (c *squads) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *squads) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -107,93 +108,96 @@ func (c *squads) Watch(opts v1.ListOptions) (watch.Interface, error) {
 		Resource("squads").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a squad and creates it.  Returns the server's representation of the squad, and an error, if there is any.
-func (c *squads) Create(squad *v1alpha1.Squad) (result *v1alpha1.Squad, err error) {
+func (c *squads) Create(ctx context.Context, squad *v1alpha1.Squad, opts v1.CreateOptions) (result *v1alpha1.Squad, err error) {
 	result = &v1alpha1.Squad{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("squads").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(squad).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a squad and updates it. Returns the server's representation of the squad, and an error, if there is any.
-func (c *squads) Update(squad *v1alpha1.Squad) (result *v1alpha1.Squad, err error) {
+func (c *squads) Update(ctx context.Context, squad *v1alpha1.Squad, opts v1.UpdateOptions) (result *v1alpha1.Squad, err error) {
 	result = &v1alpha1.Squad{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("squads").
 		Name(squad.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(squad).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
-func (c *squads) UpdateStatus(squad *v1alpha1.Squad) (result *v1alpha1.Squad, err error) {
+func (c *squads) UpdateStatus(ctx context.Context, squad *v1alpha1.Squad, opts v1.UpdateOptions) (result *v1alpha1.Squad, err error) {
 	result = &v1alpha1.Squad{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("squads").
 		Name(squad.Name).
 		SubResource("status").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(squad).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the squad and deletes it. Returns an error if one occurs.
-func (c *squads) Delete(name string, options *v1.DeleteOptions) error {
+func (c *squads) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("squads").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *squads) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+func (c *squads) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("squads").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched squad.
-func (c *squads) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.Squad, err error) {
+func (c *squads) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Squad, err error) {
 	result = &v1alpha1.Squad{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("squads").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // GetScale takes name of the squad, and returns the corresponding autoscalingv1.Scale object, and an error if there is any.
-func (c *squads) GetScale(squadName string, options v1.GetOptions) (result *autoscalingv1.Scale, err error) {
+func (c *squads) GetScale(ctx context.Context, squadName string, options v1.GetOptions) (result *autoscalingv1.Scale, err error) {
 	result = &autoscalingv1.Scale{}
 	err = c.client.Get().
 		Namespace(c.ns).
@@ -201,21 +205,22 @@ func (c *squads) GetScale(squadName string, options v1.GetOptions) (result *auto
 		Name(squadName).
 		SubResource("scale").
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // UpdateScale takes the top resource name and the representation of a scale and updates it. Returns the server's representation of the scale, and an error, if there is any.
-func (c *squads) UpdateScale(squadName string, scale *autoscalingv1.Scale) (result *autoscalingv1.Scale, err error) {
+func (c *squads) UpdateScale(ctx context.Context, squadName string, scale *autoscalingv1.Scale, opts v1.UpdateOptions) (result *autoscalingv1.Scale, err error) {
 	result = &autoscalingv1.Scale{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("squads").
 		Name(squadName).
 		SubResource("scale").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(scale).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }

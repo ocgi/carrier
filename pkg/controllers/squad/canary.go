@@ -15,10 +15,12 @@
 package squad
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog"
@@ -236,6 +238,6 @@ func (c *Controller) clearThreshold(squad *carrierv1alpha1.Squad) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.squadGetter.Squads(squad.Namespace).Patch(squad.Name, types.MergePatchType, patch)
+	_, err = c.squadGetter.Squads(squad.Namespace).Patch(context.TODO(), squad.Name, types.MergePatchType, patch, metav1.PatchOptions{})
 	return err
 }

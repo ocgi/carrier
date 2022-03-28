@@ -16,10 +16,12 @@
 package squad
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 
 	carrierv1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
@@ -96,7 +98,7 @@ func (c *Controller) syncRolloutStatus(
 
 	newSquad := squad
 	newSquad.Status = newStatus
-	_, err := c.squadGetter.Squads(newSquad.Namespace).UpdateStatus(newSquad)
+	_, err := c.squadGetter.Squads(newSquad.Namespace).UpdateStatus(context.TODO(), newSquad, metav1.UpdateOptions{})
 	return err
 }
 

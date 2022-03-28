@@ -24,8 +24,10 @@ import (
 )
 
 // SquadLister helps list Squads.
+// All objects returned here must be treated as read-only.
 type SquadLister interface {
 	// List lists all Squads in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Squad, err error)
 	// Squads returns an object that can list and get Squads.
 	Squads(namespace string) SquadNamespaceLister
@@ -56,10 +58,13 @@ func (s *squadLister) Squads(namespace string) SquadNamespaceLister {
 }
 
 // SquadNamespaceLister helps list and get Squads.
+// All objects returned here must be treated as read-only.
 type SquadNamespaceLister interface {
 	// List lists all Squads in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Squad, err error)
 	// Get retrieves the Squad from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.Squad, error)
 	SquadNamespaceListerExpansion
 }

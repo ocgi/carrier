@@ -166,7 +166,7 @@ func isCRDReady(client v1beta1.CustomResourceDefinitionInterface) bool {
 		wg.Add(1)
 		go func(crdName string) {
 			defer wg.Done()
-			crd, err := client.Get(fmt.Sprintf("%s.%s", crdName, carrier.GroupName), metav1.GetOptions{})
+			crd, err := client.Get(context.TODO(), fmt.Sprintf("%s.%s", crdName, carrier.GroupName), metav1.GetOptions{})
 			if err != nil {
 				errs = append(errs, err)
 				return

@@ -366,7 +366,7 @@ func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error
 		// scale up when inplace updating
 		if len(newGameServers) > int(updatedCount) {
 			gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = strconv.Itoa(len(newGameServers))
-			_, err = c.carrierClient.CarrierV1alpha1().GameServerSets(gsSet.Namespace).Update(gsSet)
+			_, err = c.carrierClient.CarrierV1alpha1().GameServerSets(gsSet.Namespace).Update(context.TODO(), gsSet, metav1.UpdateOptions{})
 			return err
 		}
 		return nil
@@ -398,14 +398,15 @@ func (c *Controller) doInPlaceUpdate(gsSet *carrierv1alpha1.GameServerSet) error
 	// if retry failed, make sure the cache has synced.
 	err = wait.PollImmediate(50*time.Millisecond, 1*time.Second, func() (done bool, err error) {
 		gsSet.Annotations[util.GameServerInPlaceUpdatedReplicasAnnotation] = strconv.Itoa(int(updated + updatedCount))
-		_, err = c.carrierClient.CarrierV1alpha1().GameServerSets(gsSet.Namespace).Update(gsSet)
+		_, err = c.carrierClient.CarrierV1alpha1().GameServerSets(gsSet.Namespace).Update(context.TODO(), gsSet, metav1.UpdateOptions{})
 		if err == nil {
 			return true, nil
 		}
 		if !k8serrors.IsNotFound(err) {
 			return false, err
 		}
-		gsSetCopy, getErr := c.carrierClient.CarrierV1alpha1().GameServerSets(gsSet.Namespace).Get(gsSet.Name,
+		gsSetCopy, getErr := c.carrierClient.CarrierV1alpha1().GameServerSets(gsSet.Namespace).Get(context.TODO(),
+			gsSet.Name,
 			metav1.GetOptions{})
 		if getErr != nil {
 			return false, nil
@@ -550,7 +551,7 @@ func (c *Controller) inplaceUpdateGameServers(gsSet *carrierv1alpha1.GameServerS
 		// Double check GameServer status, same as `deleteGameServers`。
 		if gameservers.IsBeforeRunning(gsCopy) {
 			newGS, err := c.carrierClient.CarrierV1alpha1().
-				GameServers(gsCopy.Namespace).Get(gs.Name, metav1.GetOptions{})
+				GameServers(gsCopy.Namespace).Get(context.TODO(), gs.Name, metav1.GetOptions{})
 			if err != nil {
 				errs = append(errs, errors.Wrapf(err, "error checking GameServer %s status", gs.Name))
 				return
@@ -561,13 +562,15 @@ func (c *Controller) inplaceUpdateGameServers(gsSet *carrierv1alpha1.GameServerS
 			}
 		}
 		gsCopy.Status.Conditions = nil
-		gsCopy, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).UpdateStatus(gsCopy)
+		gsCopy, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).UpdateStatus(context.TODO(), gsCopy,
+			metav1.UpdateOptions{})
 		if err != nil {
 			errs = append(errs, errors.Wrapf(err, "error updating GameServer %v status for condition", gs.Name))
 			return
 		}
 		updateGameServerSpec(gsSet, gsCopy)
-		gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Update(gsCopy)
+		gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Update(context.TODO(), gsCopy,
+			metav1.UpdateOptions{})
 		if err != nil {
 			errs = append(errs, errors.Wrapf(err, "error inpalce updating GameServer: %v", gsCopy.Name))
 			return
@@ -587,7 +590,7 @@ func (c *Controller) createGameServers(gsSet *carrierv1alpha1.GameServerSet, cou
 	gs := BuildGameServer(gsSet)
 	gameservers.ApplyDefaults(gs)
 	workqueue.ParallelizeUntil(context.Background(), BurstReplicas, count, func(piece int) {
-		newGS, err := c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Create(gs)
+		newGS, err := c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Create(context.TODO(), gs, metav1.CreateOptions{})
 		if err != nil {
 			errs = append(errs, errors.Wrapf(err, "error creating GameServer for GameServerSet %s", gsSet.Name))
 			return
@@ -618,7 +621,7 @@ func (c *Controller) deleteGameServers(gsSet *carrierv1alpha1.GameServerSet,
 		// so we take Object from apiserver as source of truth.
 		if gameservers.IsBeforeRunning(gsCopy) {
 			newGS, err := c.carrierClient.CarrierV1alpha1().
-				GameServers(gsCopy.Namespace).Get(gs.Name, metav1.GetOptions{})
+				GameServers(gsCopy.Namespace).Get(context.TODO(), gs.Name, metav1.GetOptions{})
 			if err != nil {
 				errs = append(errs, errors.Wrapf(err, "error checking GameServer %s status", gs.Name))
 				return
@@ -629,8 +632,8 @@ func (c *Controller) deleteGameServers(gsSet *carrierv1alpha1.GameServerSet,
 			}
 		}
 		p := metav1.DeletePropagationBackground
-		err := c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Delete(gs.Name,
-			&metav1.DeleteOptions{PropagationPolicy: &p})
+		err := c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Delete(context.TODO(), gs.Name,
+			metav1.DeleteOptions{PropagationPolicy: &p})
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return
 		}
@@ -668,7 +671,8 @@ func (c *Controller) markGameServersOutOfService(gsSet *carrierv1alpha1.GameServ
 		if gameservers.IsDeletableExist(gsCopy) {
 			gameservers.AddNotInServiceConstraint(gsCopy)
 		}
-		gsCopy, err := c.carrierClient.CarrierV1alpha1().GameServers(gsCopy.Namespace).Update(gsCopy)
+		gsCopy, err := c.carrierClient.CarrierV1alpha1().GameServers(gsCopy.Namespace).Update(context.TODO(), gsCopy,
+			metav1.UpdateOptions{})
 		if err != nil {
 			errs = append(errs, errors.Wrapf(err, "error updating GameServer %s to not in service", gs.Name))
 			return
@@ -697,7 +701,7 @@ func (c *Controller) updateStatusIfChanged(gsSet *carrierv1alpha1.GameServerSet,
 	var err error
 	if !reflect.DeepEqual(gsSet.Status, status) {
 		gsSet.Status = status
-		gsSet, err = c.carrierClient.CarrierV1alpha1().GameServerSets(gsSet.Namespace).UpdateStatus(gsSet)
+		gsSet, err = c.carrierClient.CarrierV1alpha1().GameServerSets(gsSet.Namespace).UpdateStatus(context.TODO(), gsSet, metav1.UpdateOptions{})
 		if err != nil {
 			return nil, errors.Wrap(err, "error updating status on GameServerSet")
 		}
@@ -718,7 +722,7 @@ func (c *Controller) patchGameServerIfChanged(gsSet *carrierv1alpha1.GameServerS
 	}
 	klog.V(3).Infof("GameServerSet %v got to scaling: %+v", gsSet.Name, gsSetCopy.Status.Conditions)
 	gsSetCopy, err = c.carrierClient.CarrierV1alpha1().GameServerSets(gsSet.Namespace).
-		Patch(gsSet.Name, types.MergePatchType, patch, "status")
+		Patch(context.TODO(), gsSet.Name, types.MergePatchType, patch, metav1.PatchOptions{}, "status")
 	if err != nil {
 		return nil, errors.Wrapf(err, "error updating status on GameServerSet %s", gsSet.Name)
 	}

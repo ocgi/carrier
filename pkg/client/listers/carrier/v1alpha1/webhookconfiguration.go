@@ -24,8 +24,10 @@ import (
 )
 
 // WebhookConfigurationLister helps list WebhookConfigurations.
+// All objects returned here must be treated as read-only.
 type WebhookConfigurationLister interface {
 	// List lists all WebhookConfigurations in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.WebhookConfiguration, err error)
 	// WebhookConfigurations returns an object that can list and get WebhookConfigurations.
 	WebhookConfigurations(namespace string) WebhookConfigurationNamespaceLister
@@ -56,10 +58,13 @@ func (s *webhookConfigurationLister) WebhookConfigurations(namespace string) Web
 }
 
 // WebhookConfigurationNamespaceLister helps list and get WebhookConfigurations.
+// All objects returned here must be treated as read-only.
 type WebhookConfigurationNamespaceLister interface {
 	// List lists all WebhookConfigurations in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.WebhookConfiguration, err error)
 	// Get retrieves the WebhookConfiguration from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.WebhookConfiguration, error)
 	WebhookConfigurationNamespaceListerExpansion
 }

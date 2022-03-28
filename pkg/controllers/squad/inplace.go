@@ -15,8 +15,10 @@
 package squad
 
 import (
+	"context"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -64,7 +66,7 @@ func (c *Controller) rolloutInplace(squad *carrierv1alpha1.Squad, gsSetList []*c
 	SetGameServerSetInplaceUpdateAnnotations(newGSSet, squad)
 	newGSSet.Spec.Template.Spec.Template.Spec = *squad.Spec.Template.Spec.Template.Spec.DeepCopy()
 	SetGameServerTemplateHashLabels(newGSSet)
-	_, err = c.gameServerSetGetter.GameServerSets(newGSSet.Namespace).Update(newGSSet)
+	_, err = c.gameServerSetGetter.GameServerSets(newGSSet.Namespace).Update(context.TODO(), newGSSet, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
@@ -98,7 +100,7 @@ func (c *Controller) cleanupGameServerSet(gsSet *carrierv1alpha1.GameServerSet) 
 	klog.V(4).Infof("Cleans up inplace update annotations of GameServerSet %q", gsSet.Name)
 	delete(gsSet.Annotations, util.GameServerInPlaceUpdateAnnotation)
 	delete(gsSet.Annotations, util.GameServerInPlaceUpdatedReplicasAnnotation)
-	_, err := c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(gsSet)
+	_, err := c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Update(context.TODO(), gsSet, metav1.UpdateOptions{})
 	return err
 }
 
@@ -112,6 +114,6 @@ func (c *Controller) clearInplaceUpdateStrategy(squad *carrierv1alpha1.Squad) er
 	if err != nil {
 		return err
 	}
-	_, err = c.squadGetter.Squads(squad.Namespace).Patch(squad.Name, types.MergePatchType, patch)
+	_, err = c.squadGetter.Squads(squad.Namespace).Patch(context.TODO(), squad.Name, types.MergePatchType, patch, metav1.PatchOptions{})
 	return err
 }

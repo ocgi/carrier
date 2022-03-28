@@ -16,9 +16,11 @@
 package squad
 
 import (
+	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	intstrutil "k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog"
 
@@ -100,7 +102,7 @@ func (c *Controller) updateSquadAndClearRollbackTo(squad *carrierv1alpha1.Squad)
 		threshold := intstrutil.FromString("100%")
 		squad.Spec.Strategy.CanaryUpdate.Threshold = &threshold
 	}
-	_, err := c.squadGetter.Squads(squad.Namespace).Update(squad)
+	_, err := c.squadGetter.Squads(squad.Namespace).Update(context.TODO(), squad, metav1.UpdateOptions{})
 	return err
 }
 

@@ -17,6 +17,8 @@
 package fake
 
 import (
+	"context"
+
 	v1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,7 +40,7 @@ var gameserversetsResource = schema.GroupVersionResource{Group: "carrier.ocgi.de
 var gameserversetsKind = schema.GroupVersionKind{Group: "carrier.ocgi.dev", Version: "v1alpha1", Kind: "GameServerSet"}
 
 // Get takes name of the gameServerSet, and returns the corresponding gameServerSet object, and an error if there is any.
-func (c *FakeGameServerSets) Get(name string, options v1.GetOptions) (result *v1alpha1.GameServerSet, err error) {
+func (c *FakeGameServerSets) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.GameServerSet, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(gameserversetsResource, c.ns, name), &v1alpha1.GameServerSet{})
 
@@ -49,7 +51,7 @@ func (c *FakeGameServerSets) Get(name string, options v1.GetOptions) (result *v1
 }
 
 // List takes label and field selectors, and returns the list of GameServerSets that match those selectors.
-func (c *FakeGameServerSets) List(opts v1.ListOptions) (result *v1alpha1.GameServerSetList, err error) {
+func (c *FakeGameServerSets) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.GameServerSetList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(gameserversetsResource, gameserversetsKind, c.ns, opts), &v1alpha1.GameServerSetList{})
 
@@ -71,14 +73,14 @@ func (c *FakeGameServerSets) List(opts v1.ListOptions) (result *v1alpha1.GameSer
 }
 
 // Watch returns a watch.Interface that watches the requested gameServerSets.
-func (c *FakeGameServerSets) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeGameServerSets) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(gameserversetsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a gameServerSet and creates it.  Returns the server's representation of the gameServerSet, and an error, if there is any.
-func (c *FakeGameServerSets) Create(gameServerSet *v1alpha1.GameServerSet) (result *v1alpha1.GameServerSet, err error) {
+func (c *FakeGameServerSets) Create(ctx context.Context, gameServerSet *v1alpha1.GameServerSet, opts v1.CreateOptions) (result *v1alpha1.GameServerSet, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(gameserversetsResource, c.ns, gameServerSet), &v1alpha1.GameServerSet{})
 
@@ -89,7 +91,7 @@ func (c *FakeGameServerSets) Create(gameServerSet *v1alpha1.GameServerSet) (resu
 }
 
 // Update takes the representation of a gameServerSet and updates it. Returns the server's representation of the gameServerSet, and an error, if there is any.
-func (c *FakeGameServerSets) Update(gameServerSet *v1alpha1.GameServerSet) (result *v1alpha1.GameServerSet, err error) {
+func (c *FakeGameServerSets) Update(ctx context.Context, gameServerSet *v1alpha1.GameServerSet, opts v1.UpdateOptions) (result *v1alpha1.GameServerSet, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(gameserversetsResource, c.ns, gameServerSet), &v1alpha1.GameServerSet{})
 
@@ -101,7 +103,7 @@ func (c *FakeGameServerSets) Update(gameServerSet *v1alpha1.GameServerSet) (resu
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeGameServerSets) UpdateStatus(gameServerSet *v1alpha1.GameServerSet) (*v1alpha1.GameServerSet, error) {
+func (c *FakeGameServerSets) UpdateStatus(ctx context.Context, gameServerSet *v1alpha1.GameServerSet, opts v1.UpdateOptions) (*v1alpha1.GameServerSet, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(gameserversetsResource, "status", c.ns, gameServerSet), &v1alpha1.GameServerSet{})
 
@@ -112,23 +114,23 @@ func (c *FakeGameServerSets) UpdateStatus(gameServerSet *v1alpha1.GameServerSet)
 }
 
 // Delete takes name of the gameServerSet and deletes it. Returns an error if one occurs.
-func (c *FakeGameServerSets) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeGameServerSets) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(gameserversetsResource, c.ns, name), &v1alpha1.GameServerSet{})
+		Invokes(testing.NewDeleteActionWithOptions(gameserversetsResource, c.ns, name, opts), &v1alpha1.GameServerSet{})
 
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeGameServerSets) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(gameserversetsResource, c.ns, listOptions)
+func (c *FakeGameServerSets) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(gameserversetsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.GameServerSetList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched gameServerSet.
-func (c *FakeGameServerSets) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.GameServerSet, err error) {
+func (c *FakeGameServerSets) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.GameServerSet, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(gameserversetsResource, c.ns, name, pt, data, subresources...), &v1alpha1.GameServerSet{})
 
@@ -139,7 +141,7 @@ func (c *FakeGameServerSets) Patch(name string, pt types.PatchType, data []byte,
 }
 
 // GetScale takes name of the gameServerSet, and returns the corresponding scale object, and an error if there is any.
-func (c *FakeGameServerSets) GetScale(gameServerSetName string, options v1.GetOptions) (result *autoscalingv1.Scale, err error) {
+func (c *FakeGameServerSets) GetScale(ctx context.Context, gameServerSetName string, options v1.GetOptions) (result *autoscalingv1.Scale, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetSubresourceAction(gameserversetsResource, c.ns, "scale", gameServerSetName), &autoscalingv1.Scale{})
 
@@ -150,7 +152,7 @@ func (c *FakeGameServerSets) GetScale(gameServerSetName string, options v1.GetOp
 }
 
 // UpdateScale takes the representation of a scale and updates it. Returns the server's representation of the scale, and an error, if there is any.
-func (c *FakeGameServerSets) UpdateScale(gameServerSetName string, scale *autoscalingv1.Scale) (result *autoscalingv1.Scale, err error) {
+func (c *FakeGameServerSets) UpdateScale(ctx context.Context, gameServerSetName string, scale *autoscalingv1.Scale, opts v1.UpdateOptions) (result *autoscalingv1.Scale, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(gameserversetsResource, "scale", c.ns, scale), &autoscalingv1.Scale{})
 

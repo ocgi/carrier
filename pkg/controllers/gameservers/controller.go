@@ -15,6 +15,7 @@
 package gameservers
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"time"
@@ -149,7 +150,7 @@ func (c *Controller) syncNodeTaint(nodeName string) error {
 	if err != nil {
 		return err
 	}
-	pods, err := c.kubeClient.CoreV1().Pods(corev1.NamespaceAll).List(metav1.ListOptions{
+	pods, err := c.kubeClient.CoreV1().Pods(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
 		FieldSelector: fieldSelector.String(),
 	})
 	if err != nil {
@@ -170,7 +171,7 @@ func (c *Controller) syncNodeTaint(nodeName string) error {
 		}
 		klog.V(4).Infof("Add NotInServiceConstraint for gs %v/%v", gs.Namespace, gs.Name)
 		AddNotInServiceConstraint(gs)
-		gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Update(gs)
+		gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Update(context.TODO(), gs, metav1.UpdateOptions{})
 		if err != nil {
 			klog.Error(err)
 			return errors.Wrap(err, "error updating GameServer to not in service")
@@ -364,7 +365,8 @@ func (c *Controller) syncGameServerDeletionTimestamp(gs *carrierv1alpha1.GameSer
 	}
 
 	if pod != nil && pod.DeletionTimestamp == nil {
-		if err = c.kubeClient.CoreV1().Pods(pod.Namespace).Delete(pod.Name, &metav1.DeleteOptions{}); err != nil {
+		if err = c.kubeClient.CoreV1().Pods(pod.Namespace).Delete(context.TODO(), pod.Name,
+			metav1.DeleteOptions{}); err != nil {
 			return gs, errors.Wrapf(err,
 				"error deleting pod for GameServer. Name: %s, Namespace: %s", gs.Name, pod.Namespace)
 		}
@@ -380,7 +382,7 @@ func (c *Controller) syncGameServerDeletionTimestamp(gs *carrierv1alpha1.GameSer
 	}
 	gs.Finalizers = fin
 	klog.Infof("No pods of GameServer %v found, removing finalizer %s", gs.Name, carrier.GroupName)
-	gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Update(gs)
+	gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Update(context.TODO(), gs, metav1.UpdateOptions{})
 	return gs, errors.Wrap(err, "error removing finalizer for GameServer")
 }
 
@@ -426,7 +428,7 @@ func (c *Controller) tryAllocatePorts(gs *carrierv1alpha1.GameServer) (*carrierv
 		setHostPortRange(gsCopy, ports)
 	}
 	gsCopy.Annotations[util.GameServerDynamicPortAllocated] = "true"
-	gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gsCopy.Namespace).Update(gsCopy)
+	gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gsCopy.Namespace).Update(context.TODO(), gsCopy, metav1.UpdateOptions{})
 	if err == nil {
 		return gs, nil
 	}
@@ -460,7 +462,7 @@ func (c *Controller) syncGameServerStartingState(gs *carrierv1alpha1.GameServer)
 				LastProbeTime: metav1.NewTime(time.Now()),
 				Message:       "Pod deleted",
 			})
-			return c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).UpdateStatus(gs)
+			return c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).UpdateStatus(context.TODO(), gs, metav1.UpdateOptions{})
 		}
 		klog.V(4).Infof("Start creating pod for GameServer:%v", gs.Name)
 		return c.createGameServerPod(gs)
@@ -472,7 +474,7 @@ func (c *Controller) syncGameServerStartingState(gs *carrierv1alpha1.GameServer)
 	if pod.Labels[util.GameServerHash] != gs.Labels[util.GameServerHash] {
 		podCopy := pod.DeepCopy()
 		updatePodSpec(gs, podCopy)
-		pod, err = c.kubeClient.CoreV1().Pods(podCopy.Namespace).Update(podCopy)
+		pod, err = c.kubeClient.CoreV1().Pods(podCopy.Namespace).Update(context.TODO(), podCopy, metav1.UpdateOptions{})
 		if err != nil {
 			c.recorder.Event(gs, corev1.EventTypeWarning, string(gs.Status.State),
 				fmt.Sprintf("Pod %v controlled by GameServer failed updated, reason: %v", gs.Name, err))
@@ -487,7 +489,7 @@ func (c *Controller) syncGameServerStartingState(gs *carrierv1alpha1.GameServer)
 		return gs, nil
 	}
 	gs.Status.State = carrierv1alpha1.GameServerStarting
-	gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).UpdateStatus(gs)
+	gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).UpdateStatus(context.TODO(), gs, metav1.UpdateOptions{})
 	if err != nil {
 		return gs, errors.Wrap(err, "error updating GameServer to Starting state")
 	}
@@ -518,7 +520,7 @@ func (c *Controller) syncGameServerRunningState(gs *carrierv1alpha1.GameServer) 
 		podCopy := pod.DeepCopy()
 		updatePodSpec(gs, podCopy)
 		if !reflect.DeepEqual(podCopy, pod) {
-			pod, err = c.kubeClient.CoreV1().Pods(podCopy.Namespace).Update(podCopy)
+			pod, err = c.kubeClient.CoreV1().Pods(podCopy.Namespace).Update(context.TODO(), podCopy, metav1.UpdateOptions{})
 			if err != nil {
 				return gs, err
 			}
@@ -566,7 +568,7 @@ func (c *Controller) syncGameServerRunningState(gs *carrierv1alpha1.GameServer) 
 	if reflect.DeepEqual(gsStatusCopy, gs.Status) {
 		return gs, nil
 	}
-	gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).UpdateStatus(gs)
+	gs, err = c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).UpdateStatus(context.TODO(), gs, metav1.UpdateOptions{})
 	if err != nil {
 		return gs, errors.Wrapf(err, "failed to update status of %v after reconcile state", pod.Name)
 	}
@@ -597,7 +599,7 @@ func (c *Controller) removeConstraintsFromGameServer(gs *carrierv1alpha1.GameSer
 		return gs, nil
 	}
 	gs.Spec.Constraints = constraints
-	return c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Update(gs)
+	return c.carrierClient.CarrierV1alpha1().GameServers(gs.Namespace).Update(context.TODO(), gs, metav1.UpdateOptions{})
 }
 
 // createGameServerPod creates the backing Pod for a given GameServer
@@ -611,7 +613,7 @@ func (c *Controller) createGameServerPod(gs *carrierv1alpha1.GameServer) (*carri
 	}
 
 	klog.V(4).Infof("Creating pod: %v for GameServer", pod.Name)
-	pod, err = c.kubeClient.CoreV1().Pods(gs.Namespace).Create(pod)
+	pod, err = c.kubeClient.CoreV1().Pods(gs.Namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
 	if err != nil {
 		switch {
 		case k8serrors.IsAlreadyExists(err):

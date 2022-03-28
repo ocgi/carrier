@@ -16,6 +16,7 @@
 package squad
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sort"
@@ -90,7 +91,7 @@ func (c *Controller) syncSquadStatus(
 
 	newSquad := squad
 	newSquad.Status = newStatus
-	_, err := c.squadGetter.Squads(newSquad.Namespace).UpdateStatus(newSquad)
+	_, err := c.squadGetter.Squads(newSquad.Namespace).UpdateStatus(context.TODO(), newSquad, metav1.UpdateOptions{})
 	return err
 }
 
@@ -216,7 +217,8 @@ func (c *Controller) getNewGameServerSet(
 		annotationsUpdated := SetNewGameServerSetAnnotations(squad, gsSetCopy,
 			newRevision, true, maxRevHistoryLengthInChars)
 		if annotationsUpdated {
-			return c.gameServerSetGetter.GameServerSets(gsSetCopy.ObjectMeta.Namespace).Update(gsSetCopy)
+			return c.gameServerSetGetter.GameServerSets(gsSetCopy.ObjectMeta.Namespace).Update(context.TODO(),
+				gsSetCopy, metav1.UpdateOptions{})
 		}
 
 		// Should use the revision in existingNewGSSet's annotation, since it set by before
@@ -232,7 +234,8 @@ func (c *Controller) getNewGameServerSet(
 
 		if needsUpdate {
 			var err error
-			if _, err = c.squadGetter.Squads(squad.Namespace).UpdateStatus(squad); err != nil {
+			if _, err = c.squadGetter.Squads(squad.Namespace).UpdateStatus(context.TODO(), squad,
+				metav1.UpdateOptions{}); err != nil {
 				return nil, err
 			}
 		}
@@ -283,7 +286,7 @@ func (c *Controller) getNewGameServerSet(
 	// hash collisions. If there is any other error, we need to report it in the status of
 	// the Squad.
 	alreadyExists := false
-	createdGSSet, err := c.gameServerSetGetter.GameServerSets(squad.Namespace).Create(&newGSSet)
+	createdGSSet, err := c.gameServerSetGetter.GameServerSets(squad.Namespace).Create(context.TODO(), &newGSSet, metav1.CreateOptions{})
 	switch {
 	// We may end up hitting this due to a slow cache or a fast resync of the Squad.
 	case k8serrors.IsAlreadyExists(err):
@@ -309,7 +312,7 @@ func (c *Controller) getNewGameServerSet(
 		}
 		// Update the collisionCount for the Squad and let it requeue by returning the original
 		// error.
-		_, dErr := c.squadGetter.Squads(squad.Namespace).UpdateStatus(squad)
+		_, dErr := c.squadGetter.Squads(squad.Namespace).UpdateStatus(context.TODO(), squad, metav1.UpdateOptions{})
 		if dErr != nil {
 			return nil, dErr
 		}
@@ -342,7 +345,7 @@ func (c *Controller) getNewGameServerSet(
 		needsUpdate = true
 	}
 	if needsUpdate {
-		_, err = c.squadGetter.Squads(squad.Namespace).UpdateStatus(squad)
+		_, err = c.squadGetter.Squads(squad.Namespace).UpdateStatus(context.TODO(), squad, metav1.UpdateOptions{})
 	}
 	return createdGSSet, err
 }
@@ -482,7 +485,8 @@ func (c *Controller) scaleGameServerSet(
 			SetScalingAnnotations(gsSetCopy)
 		}
 		SetReplicasAnnotations(gsSetCopy, squad.Spec.Replicas, squad.Spec.Replicas+MaxSurge(*squad))
-		gsSet, err = c.gameServerSetGetter.GameServerSets(gsSetCopy.Namespace).Update(gsSetCopy)
+		gsSet, err = c.gameServerSetGetter.GameServerSets(gsSetCopy.Namespace).Update(context.TODO(), gsSetCopy,
+			metav1.UpdateOptions{})
 		if err == nil && sizeNeedsUpdate {
 			scaled = true
 			c.recorder.Eventf(
@@ -530,8 +534,8 @@ func (c *Controller) cleanupSquad(oldGSSets []*carrierv1alpha1.GameServerSet, sq
 			continue
 		}
 		klog.V(4).Infof("Trying to cleanup GameServerSet %q for squad %q", gsSet.Name, squad.Name)
-		if err := c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Delete(gsSet.Name,
-			&metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
+		if err := c.gameServerSetGetter.GameServerSets(gsSet.Namespace).Delete(context.TODO(), gsSet.Name,
+			metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 			// Return error instead of aggregating and continuing DELETEs on the theory
 			// that we may be overloading the api server.
 			return err
@@ -571,7 +575,7 @@ func (c Controller) checkPausedConditions(squad *carrierv1alpha1.Squad) error {
 	}
 
 	var err error
-	_, err = c.squadGetter.Squads(squad.Namespace).UpdateStatus(squad)
+	_, err = c.squadGetter.Squads(squad.Namespace).UpdateStatus(context.TODO(), squad, metav1.UpdateOptions{})
 	return err
 }
 

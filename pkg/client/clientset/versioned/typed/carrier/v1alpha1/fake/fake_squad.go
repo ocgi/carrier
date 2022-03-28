@@ -17,6 +17,8 @@
 package fake
 
 import (
+	"context"
+
 	v1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,7 +40,7 @@ var squadsResource = schema.GroupVersionResource{Group: "carrier.ocgi.dev", Vers
 var squadsKind = schema.GroupVersionKind{Group: "carrier.ocgi.dev", Version: "v1alpha1", Kind: "Squad"}
 
 // Get takes name of the squad, and returns the corresponding squad object, and an error if there is any.
-func (c *FakeSquads) Get(name string, options v1.GetOptions) (result *v1alpha1.Squad, err error) {
+func (c *FakeSquads) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Squad, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(squadsResource, c.ns, name), &v1alpha1.Squad{})
 
@@ -49,7 +51,7 @@ func (c *FakeSquads) Get(name string, options v1.GetOptions) (result *v1alpha1.S
 }
 
 // List takes label and field selectors, and returns the list of Squads that match those selectors.
-func (c *FakeSquads) List(opts v1.ListOptions) (result *v1alpha1.SquadList, err error) {
+func (c *FakeSquads) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.SquadList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(squadsResource, squadsKind, c.ns, opts), &v1alpha1.SquadList{})
 
@@ -71,14 +73,14 @@ func (c *FakeSquads) List(opts v1.ListOptions) (result *v1alpha1.SquadList, err 
 }
 
 // Watch returns a watch.Interface that watches the requested squads.
-func (c *FakeSquads) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeSquads) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(squadsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a squad and creates it.  Returns the server's representation of the squad, and an error, if there is any.
-func (c *FakeSquads) Create(squad *v1alpha1.Squad) (result *v1alpha1.Squad, err error) {
+func (c *FakeSquads) Create(ctx context.Context, squad *v1alpha1.Squad, opts v1.CreateOptions) (result *v1alpha1.Squad, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(squadsResource, c.ns, squad), &v1alpha1.Squad{})
 
@@ -89,7 +91,7 @@ func (c *FakeSquads) Create(squad *v1alpha1.Squad) (result *v1alpha1.Squad, err 
 }
 
 // Update takes the representation of a squad and updates it. Returns the server's representation of the squad, and an error, if there is any.
-func (c *FakeSquads) Update(squad *v1alpha1.Squad) (result *v1alpha1.Squad, err error) {
+func (c *FakeSquads) Update(ctx context.Context, squad *v1alpha1.Squad, opts v1.UpdateOptions) (result *v1alpha1.Squad, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(squadsResource, c.ns, squad), &v1alpha1.Squad{})
 
@@ -101,7 +103,7 @@ func (c *FakeSquads) Update(squad *v1alpha1.Squad) (result *v1alpha1.Squad, err 
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeSquads) UpdateStatus(squad *v1alpha1.Squad) (*v1alpha1.Squad, error) {
+func (c *FakeSquads) UpdateStatus(ctx context.Context, squad *v1alpha1.Squad, opts v1.UpdateOptions) (*v1alpha1.Squad, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(squadsResource, "status", c.ns, squad), &v1alpha1.Squad{})
 
@@ -112,23 +114,23 @@ func (c *FakeSquads) UpdateStatus(squad *v1alpha1.Squad) (*v1alpha1.Squad, error
 }
 
 // Delete takes name of the squad and deletes it. Returns an error if one occurs.
-func (c *FakeSquads) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeSquads) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(squadsResource, c.ns, name), &v1alpha1.Squad{})
+		Invokes(testing.NewDeleteActionWithOptions(squadsResource, c.ns, name, opts), &v1alpha1.Squad{})
 
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeSquads) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(squadsResource, c.ns, listOptions)
+func (c *FakeSquads) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(squadsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.SquadList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched squad.
-func (c *FakeSquads) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.Squad, err error) {
+func (c *FakeSquads) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Squad, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(squadsResource, c.ns, name, pt, data, subresources...), &v1alpha1.Squad{})
 
@@ -139,7 +141,7 @@ func (c *FakeSquads) Patch(name string, pt types.PatchType, data []byte, subreso
 }
 
 // GetScale takes name of the squad, and returns the corresponding scale object, and an error if there is any.
-func (c *FakeSquads) GetScale(squadName string, options v1.GetOptions) (result *autoscalingv1.Scale, err error) {
+func (c *FakeSquads) GetScale(ctx context.Context, squadName string, options v1.GetOptions) (result *autoscalingv1.Scale, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetSubresourceAction(squadsResource, c.ns, "scale", squadName), &autoscalingv1.Scale{})
 
@@ -150,7 +152,7 @@ func (c *FakeSquads) GetScale(squadName string, options v1.GetOptions) (result *
 }
 
 // UpdateScale takes the representation of a scale and updates it. Returns the server's representation of the scale, and an error, if there is any.
-func (c *FakeSquads) UpdateScale(squadName string, scale *autoscalingv1.Scale) (result *autoscalingv1.Scale, err error) {
+func (c *FakeSquads) UpdateScale(ctx context.Context, squadName string, scale *autoscalingv1.Scale, opts v1.UpdateOptions) (result *autoscalingv1.Scale, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(squadsResource, "scale", c.ns, scale), &autoscalingv1.Scale{})
 

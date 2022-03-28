@@ -17,6 +17,8 @@
 package fake
 
 import (
+	"context"
+
 	v1alpha1 "github.com/ocgi/carrier/pkg/apis/carrier/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -37,7 +39,7 @@ var webhookconfigurationsResource = schema.GroupVersionResource{Group: "carrier.
 var webhookconfigurationsKind = schema.GroupVersionKind{Group: "carrier.ocgi.dev", Version: "v1alpha1", Kind: "WebhookConfiguration"}
 
 // Get takes name of the webhookConfiguration, and returns the corresponding webhookConfiguration object, and an error if there is any.
-func (c *FakeWebhookConfigurations) Get(name string, options v1.GetOptions) (result *v1alpha1.WebhookConfiguration, err error) {
+func (c *FakeWebhookConfigurations) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.WebhookConfiguration, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(webhookconfigurationsResource, c.ns, name), &v1alpha1.WebhookConfiguration{})
 
@@ -48,7 +50,7 @@ func (c *FakeWebhookConfigurations) Get(name string, options v1.GetOptions) (res
 }
 
 // List takes label and field selectors, and returns the list of WebhookConfigurations that match those selectors.
-func (c *FakeWebhookConfigurations) List(opts v1.ListOptions) (result *v1alpha1.WebhookConfigurationList, err error) {
+func (c *FakeWebhookConfigurations) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.WebhookConfigurationList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(webhookconfigurationsResource, webhookconfigurationsKind, c.ns, opts), &v1alpha1.WebhookConfigurationList{})
 
@@ -70,14 +72,14 @@ func (c *FakeWebhookConfigurations) List(opts v1.ListOptions) (result *v1alpha1.
 }
 
 // Watch returns a watch.Interface that watches the requested webhookConfigurations.
-func (c *FakeWebhookConfigurations) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeWebhookConfigurations) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(webhookconfigurationsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a webhookConfiguration and creates it.  Returns the server's representation of the webhookConfiguration, and an error, if there is any.
-func (c *FakeWebhookConfigurations) Create(webhookConfiguration *v1alpha1.WebhookConfiguration) (result *v1alpha1.WebhookConfiguration, err error) {
+func (c *FakeWebhookConfigurations) Create(ctx context.Context, webhookConfiguration *v1alpha1.WebhookConfiguration, opts v1.CreateOptions) (result *v1alpha1.WebhookConfiguration, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(webhookconfigurationsResource, c.ns, webhookConfiguration), &v1alpha1.WebhookConfiguration{})
 
@@ -88,7 +90,7 @@ func (c *FakeWebhookConfigurations) Create(webhookConfiguration *v1alpha1.Webhoo
 }
 
 // Update takes the representation of a webhookConfiguration and updates it. Returns the server's representation of the webhookConfiguration, and an error, if there is any.
-func (c *FakeWebhookConfigurations) Update(webhookConfiguration *v1alpha1.WebhookConfiguration) (result *v1alpha1.WebhookConfiguration, err error) {
+func (c *FakeWebhookConfigurations) Update(ctx context.Context, webhookConfiguration *v1alpha1.WebhookConfiguration, opts v1.UpdateOptions) (result *v1alpha1.WebhookConfiguration, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(webhookconfigurationsResource, c.ns, webhookConfiguration), &v1alpha1.WebhookConfiguration{})
 
@@ -99,23 +101,23 @@ func (c *FakeWebhookConfigurations) Update(webhookConfiguration *v1alpha1.Webhoo
 }
 
 // Delete takes name of the webhookConfiguration and deletes it. Returns an error if one occurs.
-func (c *FakeWebhookConfigurations) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeWebhookConfigurations) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(webhookconfigurationsResource, c.ns, name), &v1alpha1.WebhookConfiguration{})
+		Invokes(testing.NewDeleteActionWithOptions(webhookconfigurationsResource, c.ns, name, opts), &v1alpha1.WebhookConfiguration{})
 
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeWebhookConfigurations) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(webhookconfigurationsResource, c.ns, listOptions)
+func (c *FakeWebhookConfigurations) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(webhookconfigurationsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.WebhookConfigurationList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched webhookConfiguration.
-func (c *FakeWebhookConfigurations) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.WebhookConfiguration, err error) {
+func (c *FakeWebhookConfigurations) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.WebhookConfiguration, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(webhookconfigurationsResource, c.ns, name, pt, data, subresources...), &v1alpha1.WebhookConfiguration{})
 

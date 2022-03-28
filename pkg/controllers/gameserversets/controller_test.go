@@ -81,7 +81,7 @@ func TestControllerSyncGameServerSet(t *testing.T) {
 			}
 			gssInformer.Informer().GetStore().Add(gss)
 			for _, gs := range testCase.gameServers {
-				gsClient.CarrierV1alpha1().GameServers(gs.Namespace).Create(gs)
+				gsClient.CarrierV1alpha1().GameServers(gs.Namespace).Create(context.TODO(), gs, v1.CreateOptions{})
 				gsInformer.Informer().GetStore().Add(gs)
 			}
 			gssName := fmt.Sprintf("%v/%v", gss.Namespace, gss.Name)
@@ -90,7 +90,8 @@ func TestControllerSyncGameServerSet(t *testing.T) {
 				t.Error(err)
 			}
 			gameServers, err := c.carrierClient.CarrierV1alpha1().
-				GameServers(gss.Namespace).List(v1.ListOptions{LabelSelector: labels.FormatLabels(selectMap)})
+				GameServers(gss.Namespace).List(context.TODO(), v1.ListOptions{LabelSelector: labels.FormatLabels(
+				selectMap)})
 			if err != nil {
 				t.Error(err)
 			}

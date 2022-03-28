@@ -45,7 +45,7 @@ func TestNewControllerNodeTaint(t *testing.T) {
 	_, _, _, c, client := fakeController(ctx)
 	client = fake.NewSimpleClientset(node())
 	node := nodeWithTaint()
-	node, err := client.CoreV1().Nodes().Update(node)
+	node, err := client.CoreV1().Nodes().Update(context.TODO(), node, v1.UpdateOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestNewControllerNodeTaint(t *testing.T) {
 	}
 	err = wait.Poll(100*time.Millisecond, 1*time.Second, func() (done bool, err error) {
 		gs, err := c.carrierClient.CarrierV1alpha1().
-			GameServers("default").Get("test", v1.GetOptions{})
+			GameServers("default").Get(context.TODO(), "test", v1.GetOptions{})
 		if err != nil {
 			t.Error(err)
 			return false, nil
