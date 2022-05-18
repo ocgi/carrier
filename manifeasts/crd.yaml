@@ -1,141 +1,129 @@
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: gameservers.carrier.ocgi.dev
 spec:
-  group: carrier.ocgi.dev
-  version: v1alpha1
-  scope: Namespaced
-  additionalPrinterColumns:
-    - JSONPath: .status.state
-      name: State
-      type: string
-    - JSONPath: .status.address
-      name: Address
-      type: string
-    - JSONPath: .status.loadBalancerStatus.ingress[*].ports[*].externalPort
-      name: Port
-      type: string
-    - JSONPath: .status.loadBalancerStatus.ingress[*].ports[*].externalPortRange
-      name: PortRange
-      type: string
-    - JSONPath: .status.nodeName
-      name: Node
-      type: string
-    - JSONPath: .metadata.creationTimestamp
-      name: Age
-      type: date
   names:
     kind: GameServer
     plural: gameservers
     shortNames:
       - gs
     singular: gameserver
-  validation:
-    openAPIV3Schema:
-      required:
-        - spec
-      properties:
-        spec:
+  group: carrier.ocgi.dev
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - jsonPath: .status.state
+          name: State
+          type: string
+        - jsonPath: .status.address
+          name: Address
+          type: string
+        - jsonPath: .status.loadBalancerStatus.ingress[*].ports[*].externalPort
+          name: Port
+          type: string
+        - jsonPath: .status.loadBalancerStatus.ingress[*].ports[*].externalPortRange
+          name: PortRange
+          type: string
+        - jsonPath: .status.nodeName
+          name: Node
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      schema:
+        openAPIV3Schema:
+          type: object
           required:
-            - template
+            - spec
           properties:
-            template:
+            spec:
               type: object
               required:
-                - spec
+                - template
               properties:
-                spec:
+                template:
                   type: object
                   required:
-                    - containers
+                    - spec
                   properties:
-                    containers:
-                      type: array
-                      minItems: 1
-                      items:
-                        type: object
-                        required:
-                          - image
-                        properties:
-                          name:
-                            type: string
-                            minLength: 0
-                            maxLength: 63
-                            pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-                          image:
-                            type: string
-                            minLength: 1
-            ports:
-              type: array
-              minItems: 0
-              items:
-                type: object
-                properties:
-                  portPolicy:
-                    type: string
-                    enum:
-                      - Dynamic
-                      - Static
-                      - LoadBalancer
-                  protocol:
-                    type: string
-                    enum:
-                      - UDP
-                      - TCP
-                      - TCPUDP
-                  containerPort:
-                    type: integer
-                    minimum: 1
-                    maximum: 65535
-                  containerPortRange:
+                    spec:
+                      type: object
+                      required:
+                        - containers
+                      properties:
+                        containers:
+                          type: array
+                          minItems: 1
+                          items:
+                            type: object
+                            required:
+                              - image
+                            properties:
+                              name:
+                                type: string
+                                minLength: 0
+                                maxLength: 63
+                                pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                              image:
+                                type: string
+                                minLength: 1
+                ports:
+                  type: array
+                  minItems: 0
+                  items:
                     type: object
                     properties:
-                      minPort:
+                      portPolicy:
+                        type: string
+                        enum:
+                          - Dynamic
+                          - Static
+                          - LoadBalancer
+                      protocol:
+                        type: string
+                        enum:
+                          - UDP
+                          - TCP
+                          - TCPUDP
+                      containerPort:
                         type: integer
                         minimum: 1
                         maximum: 65535
-                      maxPort:
+                      containerPortRange:
+                        type: object
+                        properties:
+                          minPort:
+                            type: integer
+                            minimum: 1
+                            maximum: 65535
+                          maxPort:
+                            type: integer
+                            minimum: 1
+                            maximum: 65535
+                      hostPort:
                         type: integer
                         minimum: 1
                         maximum: 65535
-                  hostPort:
-                    type: integer
-                    minimum: 1
-                    maximum: 65535
-            scheduling:
-              type: string
-              enum:
-                - Default
-                - MostAllocated
-                - LeastAllocated
-  subresources:
-    # status enables the status subresource.
-    status: {}
+                scheduling:
+                  type: string
+                  enum:
+                    - Default
+                    - MostAllocated
+                    - LeastAllocated
+      subresources:
+        # status enables the status subresource.
+        status: {}
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: gameserversets.carrier.ocgi.dev
 spec:
-  additionalPrinterColumns:
-    - JSONPath: .spec.scheduling
-      name: Scheduling
-      type: string
-    - JSONPath: .spec.replicas
-      name: Desired
-      type: integer
-    - JSONPath: .status.replicas
-      name: Current
-      type: integer
-    - JSONPath: .status.readyReplicas
-      name: Ready
-      type: integer
-    - JSONPath: .metadata.creationTimestamp
-      name: Age
-      type: date
   group: carrier.ocgi.dev
-  version: v1alpha1
   scope: Namespaced
   names:
     kind: GameServerSet
@@ -144,270 +132,300 @@ spec:
       - gss
       - gsset
     singular: gameserverset
-  validation:
-    openAPIV3Schema:
-      properties:
-        spec:
-          required:
-            - replicas
-            - template
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - jsonPath: .spec.scheduling
+          name: Scheduling
+          type: string
+        - jsonPath: .spec.replicas
+          name: Desired
+          type: integer
+        - jsonPath: .status.replicas
+          name: Current
+          type: integer
+        - jsonPath: .status.readyReplicas
+          name: Ready
+          type: integer
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      schema:
+        openAPIV3Schema:
+          type: object
           properties:
-            replicas:
-              type: integer
-              minimum: 0
-            scheduling:
-              type: string
-              enum:
-                - MostAllocated
-                - LeastAllocated
-                - Default
-            template:
+            spec:
+              type: object
               required:
-                - spec
+                - replicas
+                - template
               properties:
-                spec:
+                replicas:
+                  type: integer
+                  minimum: 0
+                scheduling:
+                  type: string
+                  enum:
+                    - MostAllocated
+                    - LeastAllocated
+                    - Default
+                template:
+                  type: object
                   required:
-                    - template
+                    - spec
                   properties:
-                    template:
+                    spec:
                       type: object
                       required:
-                        - spec
+                        - template
                       properties:
-                        spec:
+                        template:
                           type: object
                           required:
-                            - containers
+                            - spec
                           properties:
-                            containers:
-                              type: array
-                              minItems: 1
-                              items:
-                                type: object
-                                required:
-                                  - image
-                                properties:
-                                  name:
-                                    type: string
-                                    minLength: 0
-                                    maxLength: 63
-                                    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-                                  image:
-                                    type: string
-                                    minLength: 1
-                    ports:
-                      type: array
-                      minItems: 0
-                      items:
-                        type: object
-                        properties:
-                          portPolicy:
-                            type: string
-                            enum:
-                              - Dynamic
-                              - Static
-                              - LoadBalancer
-                          protocol:
-                            type: string
-                            enum:
-                              - UDP
-                              - TCP
-                              - TCPUDP
-                          containerPort:
-                            type: integer
-                            minimum: 1
-                            maximum: 65535
-                          containerPortRange:
+                            spec:
+                              type: object
+                              required:
+                                - containers
+                              properties:
+                                containers:
+                                  type: array
+                                  minItems: 1
+                                  items:
+                                    type: object
+                                    required:
+                                      - image
+                                    properties:
+                                      name:
+                                        type: string
+                                        minLength: 0
+                                        maxLength: 63
+                                        pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                                      image:
+                                        type: string
+                                        minLength: 1
+                        ports:
+                          type: array
+                          minItems: 0
+                          items:
                             type: object
                             properties:
-                              minPort:
+                              portPolicy:
+                                type: string
+                                enum:
+                                  - Dynamic
+                                  - Static
+                                  - LoadBalancer
+                              protocol:
+                                type: string
+                                enum:
+                                  - UDP
+                                  - TCP
+                                  - TCPUDP
+                              containerPort:
                                 type: integer
                                 minimum: 1
                                 maximum: 65535
-                              maxPort:
+                              containerPortRange:
+                                type: object
+                                properties:
+                                  minPort:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 65535
+                                  maxPort:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 65535
+                              hostPort:
                                 type: integer
                                 minimum: 1
                                 maximum: 65535
-                          hostPort:
-                            type: integer
-                            minimum: 1
-                            maximum: 65535
-                    scheduling:
-                      type: string
-                      enum:
-                        - Default
-                        - MostAllocated
-                        - LeastAllocated
-  subresources:
-    # status enables the status subresource.
-    status: {}
-    # scale enables the scale subresource.
-    scale:
-      # specReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Spec.Replicas.
-      specReplicasPath: .spec.replicas
-      # statusReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Replicas.
-      statusReplicasPath: .status.replicas
-      # labelSelectorPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Selector.
-      labelSelectorPath: .status.selector
+                        scheduling:
+                          type: string
+                          enum:
+                            - Default
+                            - MostAllocated
+                            - LeastAllocated
+      subresources:
+        # status enables the status subresource.
+        status: {}
+        # scale enables the scale subresource.
+        scale:
+          # specReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Spec.Replicas.
+          specReplicasPath: .spec.replicas
+          # statusReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Replicas.
+          statusReplicasPath: .status.replicas
+          # labelSelectorPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Selector.
+          labelSelectorPath: .status.selector
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: squads.carrier.ocgi.dev
 spec:
   group: carrier.ocgi.dev
-  version: v1alpha1
   scope: Namespaced
-  additionalPrinterColumns:
-    - JSONPath: .spec.scheduling
-      name: Scheduling
-      type: string
-    - JSONPath: .spec.replicas
-      name: Desired
-      type: integer
-    - JSONPath: .status.replicas
-      name: Current
-      type: integer
-    - JSONPath: .status.updatedReplicas
-      name: UP-TO-DATE
-      type: integer
-    - JSONPath: .status.readyReplicas
-      name: Ready
-      type: integer
-    - JSONPath: .metadata.creationTimestamp
-      name: Age
-      type: date
   names:
     kind: Squad
     plural: squads
     shortNames:
       - sqd
     singular: squad
-  validation:
-    openAPIV3Schema:
-      properties:
-        spec:
-          required:
-            - template
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - jsonPath: .spec.scheduling
+          name: Scheduling
+          type: string
+        - jsonPath: .spec.replicas
+          name: Desired
+          type: integer
+        - jsonPath: .status.replicas
+          name: Current
+          type: integer
+        - jsonPath: .status.updatedReplicas
+          name: UP-TO-DATE
+          type: integer
+        - jsonPath: .status.readyReplicas
+          name: Ready
+          type: integer
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      schema:
+        openAPIV3Schema:
+          type: object
           properties:
-            replicas:
-              type: integer
-              minimum: 0
-            scheduling:
-              type: string
-              enum:
-                - MostAllocated
-                - LeastAllocated
-            strategy:
+            spec:
+              type: object
+              required:
+                - template
               properties:
-                type:
+                replicas:
+                  type: integer
+                  minimum: 0
+                scheduling:
                   type: string
                   enum:
-                    - Recreate
-                    - RollingUpdate
-                    - CanaryUpdate
-                    - InplaceUpdate
-            template:
-              required:
-                - spec
-              properties:
-                spec:
-                  required:
-                    - template
+                    - MostAllocated
+                    - LeastAllocated
+                strategy:
+                  type: object
                   properties:
-                    template:
-                      type: object
-                      required:
-                        - spec
-                      properties:
-                        spec:
-                          type: object
-                          required:
-                            - containers
-                          properties:
-                            containers:
-                              type: array
-                              minItems: 1
-                              items:
-                                type: object
-                                required:
-                                  - image
-                                properties:
-                                  name:
-                                    type: string
-                                    minLength: 0
-                                    maxLength: 63
-                                    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-                                  image:
-                                    type: string
-                                    minLength: 1
-                    ports:
-                      type: array
-                      minItems: 0
-                      items:
-                        type: object
-                        properties:
-                          portPolicy:
-                            type: string
-                            enum:
-                              - Dynamic
-                              - Static
-                              - LoadBalancer
-                          protocol:
-                            type: string
-                            enum:
-                              - UDP
-                              - TCP
-                              - TCPUDP
-                          containerPort:
-                            type: integer
-                            minimum: 1
-                            maximum: 65535
-                          containerPortRange:
-                            type: object
-                            properties:
-                              minPort:
-                                type: integer
-                                minimum: 1
-                                maximum: 65535
-                              maxPort:
-                                type: integer
-                                minimum: 1
-                                maximum: 65535
-                          hostPort:
-                            type: integer
-                            minimum: 1
-                            maximum: 65535
-                    scheduling:
+                    type:
                       type: string
                       enum:
-                        - Default
-                        - MostAllocated
-                        - LeastAllocated
-            revisionHistoryLimit:
-              type: integer
-              minimum: 0
-            paused:
-              type: boolean
-  subresources:
-    # status enables the status subresource.
-    status: {}
-    # scale enables the scale subresource.
-    scale:
-      # specReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Spec.Replicas.
-      specReplicasPath: .spec.replicas
-      # statusReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Replicas.
-      statusReplicasPath: .status.replicas
-      # labelSelectorPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Selector.
-      labelSelectorPath: .status.selector
+                        - Recreate
+                        - RollingUpdate
+                        - CanaryUpdate
+                        - InplaceUpdate
+                template:
+                  type: object
+                  required:
+                    - spec
+                  properties:
+                    spec:
+                      type: object
+                      required:
+                        - template
+                      properties:
+                        template:
+                          type: object
+                          required:
+                            - spec
+                          properties:
+                            spec:
+                              type: object
+                              required:
+                                - containers
+                              properties:
+                                containers:
+                                  type: array
+                                  minItems: 1
+                                  items:
+                                    type: object
+                                    required:
+                                      - image
+                                    properties:
+                                      name:
+                                        type: string
+                                        minLength: 0
+                                        maxLength: 63
+                                        pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                                      image:
+                                        type: string
+                                        minLength: 1
+                        ports:
+                          type: array
+                          minItems: 0
+                          items:
+                            type: object
+                            properties:
+                              portPolicy:
+                                type: string
+                                enum:
+                                  - Dynamic
+                                  - Static
+                                  - LoadBalancer
+                              protocol:
+                                type: string
+                                enum:
+                                  - UDP
+                                  - TCP
+                                  - TCPUDP
+                              containerPort:
+                                type: integer
+                                minimum: 1
+                                maximum: 65535
+                              containerPortRange:
+                                type: object
+                                properties:
+                                  minPort:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 65535
+                                  maxPort:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 65535
+                              hostPort:
+                                type: integer
+                                minimum: 1
+                                maximum: 65535
+                        scheduling:
+                          type: string
+                          enum:
+                            - Default
+                            - MostAllocated
+                            - LeastAllocated
+                revisionHistoryLimit:
+                  type: integer
+                  minimum: 0
+                paused:
+                  type: boolean
+      subresources:
+        # status enables the status subresource.
+        status: {}
+        # scale enables the scale subresource.
+        scale:
+          # specReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Spec.Replicas.
+          specReplicasPath: .spec.replicas
+          # statusReplicasPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Replicas.
+          statusReplicasPath: .status.replicas
+          # labelSelectorPath defines the JSONPath inside of a custom resource that corresponds to Scale.Status.Selector.
+          labelSelectorPath: .status.selector
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: webhookconfigurations.carrier.ocgi.dev
 spec:
-  group: carrier.ocgi.dev
-  version: v1alpha1
   scope: Namespaced
   names:
     kind: WebhookConfiguration
@@ -415,62 +433,68 @@ spec:
     shortNames:
       - wc
     singular: webhookconfiguration
-  validation:
-    openAPIV3Schema:
-      required:
-        - webhooks
-      properties:
-        webhooks:
-          type: array
-          minItems: 1
-          items:
-            type: object
-            required:
-              - type
-              - name
-              - clientConfig
-            minItems: 1
-            properties:
-              name:
-                type: string
-                minLength: 1
-                maxLength: 128
-              type:
-                type: string
-                enum:
-                  - ReadinessWebhook
-                  - DeletableWebhook
-                  - ConstraintWebhook
-              requestPolicy:
-                type: string
-                enum:
-                  - Once
-                  - Always
-              clientConfig:
+  group: carrier.ocgi.dev
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - webhooks
+          properties:
+            webhooks:
+              type: array
+              minItems: 1
+              items:
                 type: object
+                required:
+                  - type
+                  - name
+                  - clientConfig
+                minItems: 1
                 properties:
-                  url:
+                  name:
                     type: string
-                  service:
+                    minLength: 1
+                    maxLength: 128
+                  type:
+                    type: string
+                    enum:
+                      - ReadinessWebhook
+                      - DeletableWebhook
+                      - ConstraintWebhook
+                  requestPolicy:
+                    type: string
+                    enum:
+                      - Once
+                      - Always
+                  clientConfig:
                     type: object
-                    requeired:
-                      - namespace
-                      - name
-                      - path
-                      - port
                     properties:
-                      namespace:
+                      url:
                         type: string
-                        minLength: 1
-                        maxLength: 128
-                        pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-                      name:
-                        type: string
-                        minLength: 1
-                        maxLength: 128
-                        pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-                      path:
-                        type: string
-                      port:
-                        type: integer
-                        minimum: 0
+                      service:
+                        type: object
+                        required:
+                          - namespace
+                          - name
+                          - path
+                          - port
+                        properties:
+                          namespace:
+                            type: string
+                            minLength: 1
+                            maxLength: 128
+                            pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                          name:
+                            type: string
+                            minLength: 1
+                            maxLength: 128
+                            pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                          path:
+                            type: string
+                          port:
+                            type: integer
+                            minimum: 0

@@ -23,9 +23,9 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
-	apiv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/informers"
@@ -81,7 +81,7 @@ func main() {
 	coreFactory := informers.NewSharedInformerFactory(client, runConfig.Resync)
 	carrierFactory := carrierinformer.NewSharedInformerFactory(carrierClient, runConfig.Resync)
 
-	if !isCRDReady(exClient.ApiextensionsV1beta1().CustomResourceDefinitions()) {
+	if !isCRDReady(exClient.ApiextensionsV1().CustomResourceDefinitions()) {
 		klog.Fatalf("wait for crd ready timeout")
 	}
 
@@ -159,7 +159,7 @@ func defaultLeaderElectionConfiguration() componentbaseconfig.LeaderElectionConf
 	}
 }
 
-func isCRDReady(client v1beta1.CustomResourceDefinitionInterface) bool {
+func isCRDReady(client v1.CustomResourceDefinitionInterface) bool {
 	var wg sync.WaitGroup
 	var errs []error
 	for _, crdName := range []string{"gameservers", "gameserversets", "squads"} {
@@ -173,8 +173,8 @@ func isCRDReady(client v1beta1.CustomResourceDefinitionInterface) bool {
 			}
 			found := false
 			for _, cond := range crd.Status.Conditions {
-				if cond.Type == apiv1beta1.Established &&
-					cond.Status == apiv1beta1.ConditionTrue {
+				if cond.Type == apiv1.Established &&
+					cond.Status == apiv1.ConditionTrue {
 					found = true
 					return
 				}
