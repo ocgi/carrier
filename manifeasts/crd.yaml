@@ -36,11 +36,13 @@ spec:
           type: date
       schema:
         openAPIV3Schema:
+          x-kubernetes-preserve-unknown-fields: true
           type: object
           required:
             - spec
           properties:
             spec:
+              x-kubernetes-preserve-unknown-fields: true
               type: object
               required:
                 - template
@@ -52,6 +54,7 @@ spec:
                   properties:
                     spec:
                       type: object
+                      x-kubernetes-preserve-unknown-fields: true
                       required:
                         - containers
                       properties:
@@ -59,6 +62,7 @@ spec:
                           type: array
                           minItems: 1
                           items:
+                            x-kubernetes-preserve-unknown-fields: true
                             type: object
                             required:
                               - image
@@ -154,9 +158,11 @@ spec:
           type: date
       schema:
         openAPIV3Schema:
+          x-kubernetes-preserve-unknown-fields: true
           type: object
           properties:
             spec:
+              x-kubernetes-preserve-unknown-fields: true
               type: object
               required:
                 - replicas
@@ -172,26 +178,31 @@ spec:
                     - LeastAllocated
                     - Default
                 template:
+                  x-kubernetes-preserve-unknown-fields: true
                   type: object
                   required:
                     - spec
                   properties:
                     spec:
+                      x-kubernetes-preserve-unknown-fields: true
                       type: object
                       required:
                         - template
                       properties:
                         template:
+                          x-kubernetes-preserve-unknown-fields: true
                           type: object
                           required:
                             - spec
                           properties:
                             spec:
+                              x-kubernetes-preserve-unknown-fields: true
                               type: object
                               required:
                                 - containers
                               properties:
                                 containers:
+                                  x-kubernetes-preserve-unknown-fields: true
                                   type: array
                                   minItems: 1
                                   items:
@@ -300,9 +311,11 @@ spec:
           type: date
       schema:
         openAPIV3Schema:
+          x-kubernetes-preserve-unknown-fields: true
           type: object
           properties:
             spec:
+              x-kubernetes-preserve-unknown-fields: true
               type: object
               required:
                 - template
@@ -326,21 +339,25 @@ spec:
                         - CanaryUpdate
                         - InplaceUpdate
                 template:
+                  x-kubernetes-preserve-unknown-fields: true
                   type: object
                   required:
                     - spec
                   properties:
                     spec:
+                      x-kubernetes-preserve-unknown-fields: true
                       type: object
                       required:
                         - template
                       properties:
                         template:
+                          x-kubernetes-preserve-unknown-fields: true
                           type: object
                           required:
                             - spec
                           properties:
                             spec:
+                              x-kubernetes-preserve-unknown-fields: true
                               type: object
                               required:
                                 - containers
@@ -349,6 +366,7 @@ spec:
                                   type: array
                                   minItems: 1
                                   items:
+                                    x-kubernetes-preserve-unknown-fields: true
                                     type: object
                                     required:
                                       - image
@@ -440,14 +458,17 @@ spec:
       storage: true
       schema:
         openAPIV3Schema:
+          x-kubernetes-preserve-unknown-fields: true
           type: object
           required:
             - webhooks
           properties:
             webhooks:
+              x-kubernetes-preserve-unknown-fields: true
               type: array
               minItems: 1
               items:
+                x-kubernetes-preserve-unknown-fields: true
                 type: object
                 required:
                   - type

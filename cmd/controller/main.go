@@ -54,6 +54,7 @@ const (
 
 func main() {
 	runConfig := app.NewServerRunOptions()
+	klog.InitFlags(nil)
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
 	defer klog.Flush()
